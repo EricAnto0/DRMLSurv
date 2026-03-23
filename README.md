@@ -5,9 +5,14 @@
 
 <!-- badges: start -->
 
+[![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-The goal of DRMLSurv is to …
+DRMLSurv is a two-stage survival analysis toolkit that imputes censored
+stage-specific times by donor matching, builds matched counterfactual
+outcomes for static and dynamic treatment regimes, and learns optimal
+dynamic treatment rules with machine learning, cross-fitting, and
+balance diagnostics.
 
 ## Installation
 
