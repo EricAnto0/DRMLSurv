@@ -1,0 +1,43 @@
+Package: DRMLSurv
+Title: Doubly Robust ML and Matching for Two-Stage Survival Outcomes
+Version: 0.0.0.9000
+Authors@R:
+    person("Eric", "Anto", , "eric.anto@utah.edu", role = c("aut", "cre"))
+Description: Implements a two-stage survival analysis pipeline that combines
+    (i) imputation of censored stage-specific survival times via donor matching,
+    (ii) construction of matched counterfactual outcomes under static and dynamic
+    treatment regimes, and (iii) estimation of optimal dynamic treatment rules
+    using machine learning and cross-fitting. The toolkit supports nearest and
+    full matching, optional exact matching, balance diagnostics, and flexible
+    censoring/propensity score models via DoubleScore/SuperLearner-style
+    learners.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    stats,
+    utils,
+    graphics,
+    grDevices,
+    dplyr,
+    tidyr,
+    magrittr,
+    rlang,
+    MatchIt,
+    tictoc,
+    caret,
+    foreach,
+    ranger,
+    randomForestSRC,
+    mltools,
+    survivalSL
+Suggests:
+    ggplot2,
+    SuperLearner,
+    glmnet,
+    survival,
+    flexsurv,
+    optmatch,
+    cobalt,
+    doSNOW
