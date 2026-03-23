@@ -111,6 +111,11 @@
 #'
 #' @param na_handling How to handle units with missing paired outcomes/weights: \code{"drop"} or \code{"zero_weight"}.
 #'
+#' @param plotbalance Logical. If \code{TRUE} and the \pkg{cobalt} package is installed, prints a Love
+#'   plot of standardized mean differences before and after matching, providing a visual balance
+#'   diagnostic. For \code{method="nearest"}, separate Love plots are produced for the ATT and ATC
+#'   passes. Default is \code{FALSE}.
+#'
 #' @return A data.frame containing (at least) the original columns and additional derived columns:
 #' \itemize{
 #'   \item \code{pairedCompY}: imputed opposite-arm outcome for each unit (mean within matched set)
@@ -119,15 +124,21 @@
 #'   \item \code{diff.wt}, \code{match.weight}: discrepancy in \code{compW} and its absolute value
 #'   \item \code{newTxt}: sign-coded label based on treatment and \code{diff.wt}
 #' }
+#' When \code{plotbalance = TRUE} and \pkg{cobalt} is available, a \code{"balance"} attribute is
+#' attached to the returned data.frame containing the \code{cobalt::bal.tab()} result(s) for
+#' programmatic inspection.
 #'
-#' @seealso \code{\link[MatchIt]{matchit}}, \code{\link[MatchIt]{match.data}}, \code{\link[MatchIt]{get_matches}}
+#' @seealso \code{\link[MatchIt]{matchit}}, \code{\link[MatchIt]{match.data}},
+#'   \code{\link[MatchIt]{get_matches}}, \code{\link[cobalt]{love.plot}},
+#'   \code{\link[cobalt]{bal.tab}}
 #' @export
 matchpotential_DTR <- function(dat, txgroup, exact_vars, compY, vec, Id,
                                method = c("nearest","full"),
                                k = 3, replace = TRUE, caliper = NULL,
                                distance = "mahalanobis",
                                compW = "ipcw.R",
-                               na_handling = c("drop","zero_weight")){
+                               na_handling = c("drop","zero_weight"),
+                               plotbalance = FALSE){
 
   method <- match.arg(method)
   na_handling <- match.arg(na_handling)
@@ -193,6 +204,18 @@ matchpotential_DTR <- function(dat, txgroup, exact_vars, compY, vec, Id,
       exact    = match_vars,
       estimand = "ATE"
     )
+
+    if (plotbalance) {
+      if (requireNamespace("cobalt", quietly = TRUE)) {
+        bal <- cobalt::bal.tab(m.out, stats = c("mean.diffs", "variance.ratios"),
+                               thresholds = c(m = 0.1, v = 2))
+        print(cobalt::love.plot(m.out, stats = "mean.diffs", thresholds = c(m = 0.1),
+                                abs = TRUE, stars = "std",
+                                title = "Covariate Balance After Full Matching"))
+      } else {
+        message("Install the 'cobalt' package to enable balance diagnostics (plotbalance=TRUE).")
+      }
+    }
 
     dm <- MatchIt::match.data(m.out)
 
@@ -260,6 +283,23 @@ matchpotential_DTR <- function(dat, txgroup, exact_vars, compY, vec, Id,
       estimand  = "ATT"
     )
 
+    if (plotbalance) {
+      if (requireNamespace("cobalt", quietly = TRUE)) {
+        bal_att <- cobalt::bal.tab(m.att, stats = c("mean.diffs", "variance.ratios"),
+                                   thresholds = c(m = 0.1, v = 2))
+        bal_atc <- cobalt::bal.tab(m.atc, stats = c("mean.diffs", "variance.ratios"),
+                                   thresholds = c(m = 0.1, v = 2))
+        print(cobalt::love.plot(m.att, stats = "mean.diffs", thresholds = c(m = 0.1),
+                                abs = TRUE, stars = "std",
+                                title = "Covariate Balance After Nearest Matching (ATT)"))
+        print(cobalt::love.plot(m.atc, stats = "mean.diffs", thresholds = c(m = 0.1),
+                                abs = TRUE, stars = "std",
+                                title = "Covariate Balance After Nearest Matching (ATC)"))
+      } else {
+        message("Install the 'cobalt' package to enable balance diagnostics (plotbalance=TRUE).")
+      }
+    }
+
     md_atc <- MatchIt::get_matches(m.atc, data = subHs) %>%
       dplyr::group_by(.data$subclass) %>%
       dplyr::mutate(
@@ -323,6 +363,14 @@ matchpotential_DTR <- function(dat, txgroup, exact_vars, compY, vec, Id,
   # Ensure numeric
   out$pairedCompY   <- as.numeric(out$pairedCompY)
   out$paired.ipcw.R <- as.numeric(out$paired.ipcw.R)
+
+  if (plotbalance && requireNamespace("cobalt", quietly = TRUE)) {
+    if (method == "full") {
+      attr(out, "balance") <- bal
+    } else {
+      attr(out, "balance") <- list(ATT = bal_att, ATC = bal_atc)
+    }
+  }
 
   out
 }

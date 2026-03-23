@@ -17,7 +17,8 @@ matchpotential_DTR(
   caliper = NULL,
   distance = "mahalanobis",
   compW = "ipcw.R",
-  na_handling = c("drop", "zero_weight")
+  na_handling = c("drop", "zero_weight"),
+  plotbalance = FALSE
 )
 }
 \arguments{
@@ -51,6 +52,11 @@ For \code{method="nearest"}, your current implementation expects \code{vec} to b
 it is created as a copy of \code{compY}. Default is \code{"ipcw.R"}.}
 
 \item{na_handling}{How to handle units with missing paired outcomes/weights: \code{"drop"} or \code{"zero_weight"}.}
+
+\item{plotbalance}{Logical. If \code{TRUE} and the \pkg{cobalt} package is installed, prints a Love
+plot of standardized mean differences before and after matching, providing a visual balance
+diagnostic. For \code{method="nearest"}, separate Love plots are produced for the ATT and ATC
+passes. Default is \code{FALSE}.}
 }
 \value{
 A data.frame containing (at least) the original columns and additional derived columns:
@@ -61,6 +67,9 @@ A data.frame containing (at least) the original columns and additional derived c
 \item \code{diff.wt}, \code{match.weight}: discrepancy in \code{compW} and its absolute value
 \item \code{newTxt}: sign-coded label based on treatment and \code{diff.wt}
 }
+When \code{plotbalance = TRUE} and \pkg{cobalt} is available, a \code{"balance"} attribute is
+attached to the returned data.frame containing the \code{cobalt::bal.tab()} result(s) for
+programmatic inspection.
 }
 \description{
 Builds matched “potential outcomes” for each unit under both treatment levels by matching each unit
@@ -143,5 +152,7 @@ behavior is controlled by \code{na_handling}:
 }
 }
 \seealso{
-\code{\link[MatchIt]{matchit}}, \code{\link[MatchIt]{match.data}}, \code{\link[MatchIt]{get_matches}}
+\code{\link[MatchIt]{matchit}}, \code{\link[MatchIt]{match.data}},
+\code{\link[MatchIt]{get_matches}}, \code{\link[cobalt]{love.plot}},
+\code{\link[cobalt]{bal.tab}}
 }

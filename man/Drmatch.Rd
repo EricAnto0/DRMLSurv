@@ -53,7 +53,8 @@ Drmatch(
   method = "nearest",
   K = 3,
   replacement = TRUE,
-  cap_months = 36
+  cap_months = 36,
+  plotbalance = FALSE
 )
 }
 \arguments{
@@ -154,6 +155,9 @@ where implemented by \code{ComputeScores()}.}
 \item{replacement}{Logical; whether to allow donor reuse in nearest-neighbor matching.}
 
 \item{cap_months}{Numeric truncation cap (months). Value summaries are computed after capping at this horizon.}
+
+\item{plotbalance}{Logical; if \code{TRUE} and \pkg{cobalt} is installed, prints Love plots of
+standardized mean differences for covariate balance after each matching step. Default \code{FALSE}.}
 }
 \value{
 A \code{data.frame} with one row per outer fold (default 5). Columns include:

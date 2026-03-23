@@ -171,9 +171,6 @@ impute_censored_outcomes <- function(
   # timing helpers (no hard dependency)
   tick <- function(...) if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic(...)
   tock <- function(...) if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-  # if (requireNamespace("cobalt", quietly = TRUE)) {
-  #   cobalt::love.plot(...)
-  # }
 
   # safe logit with clipping
   safe_qlogis <- function(p, eps = 1e-6) {

@@ -96,6 +96,8 @@
 #' @param replacement Logical; whether to allow donor reuse in nearest-neighbor matching.
 #'
 #' @param cap_months Numeric truncation cap (months). Value summaries are computed after capping at this horizon.
+#' @param plotbalance Logical; if \code{TRUE} and \pkg{cobalt} is installed, prints Love plots of
+#'   standardized mean differences for covariate balance after each matching step. Default \code{FALSE}.
 #'
 #' @return
 #' A \code{data.frame} with one row per outer fold (default 5). Columns include:
@@ -180,7 +182,8 @@ Drmatch <- function(
     method                     = 'nearest',
     K                          = 3,
     replacement                = TRUE,
-    cap_months                 = 36
+    cap_months                 = 36,
+    plotbalance                = FALSE
 ) {
 
   fit <- tryCatch({
@@ -345,7 +348,8 @@ Drmatch <- function(
       replace     = TRUE,
       caliper     = NULL,
       distance    = "mahalanobis",
-      compW       = "ipcw.R"
+      compW       = "ipcw.R",
+      plotbalance = plotbalance
     )
 
     gridpar2 <- expand.grid(
@@ -419,7 +423,8 @@ Drmatch <- function(
       replace     = TRUE,
       caliper     = NULL,
       distance    = "mahalanobis",
-      compW       = "ipcw.R"
+      compW       = "ipcw.R",
+      plotbalance = plotbalance
     )
 
     gridpar1 <- expand.grid(
