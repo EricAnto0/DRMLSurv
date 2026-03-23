@@ -1,2 +1,2 @@
 # DRMLSurv
-DRMLSurv is a two-stage survival analysis toolkit that imputes censored stage-specific times by donor matching, builds matched counterfactual outcomes for static and dynamic treatment regimes, and learns optimal dynamic treatment rules with machine learning, cross-fitting, and balance diagnostics.
+DRMLSurv: a two-stage survival analysis pipeline imputing censored stage-specific times via donor matching, constructing counterfactual outcomes for static/dynamic regimes, and estimating optimal dynamic treatment rules via ML and cross-fitting, with nearest/full/exact matching, balance diagnostics, and SuperLearner-style learners.
