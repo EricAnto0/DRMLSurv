@@ -143,7 +143,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
     stop("Package 'glmnet' is required when superLearn=FALSE.", call. = FALSE)
   }
 
-  if (!superLearn && !requireNamespace("survivalSL", quietly = TRUE)) {
+  if (superLearn && !requireNamespace("survivalSL", quietly = TRUE)) {
     stop("Package 'survivalSL' is required when superLearn=TRUE", call. = FALSE)
   }
   if (!superLearn && model.pg == "aft" && !requireNamespace("flexsurv", quietly = TRUE)) {
@@ -169,7 +169,8 @@ ComputeScores <- function(data, id, Y, event, X, A,
         SL.library = A.SL.library,
         cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
         innerCvControl = innerCvControl_value,
-        parallel = parallel_mode
+        parallel = parallel_mode,
+        env = getNamespace("SuperLearner")
       )
       out[["pscens"]] <- as.numeric(sl_out$SL.predict)
     }
@@ -184,7 +185,8 @@ ComputeScores <- function(data, id, Y, event, X, A,
           X = uncensored[, c(X, A), drop = FALSE],
           family = stats::gaussian(),
           SL.library = A.SL.library,
-          cvControl = list(V = outer_CV, stratifyCV = stratifyCV)
+          cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
+          env = getNamespace("SuperLearner")
         )
         out[["pgcens"]] <- as.numeric(SuperLearner:::predict.SuperLearner(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred)
       }
@@ -209,7 +211,8 @@ ComputeScores <- function(data, id, Y, event, X, A,
       SL.library = A.SL.library,
       cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
       innerCvControl = innerCvControl_value,
-      parallel = parallel_mode
+      parallel = parallel_mode,
+      env = getNamespace("SuperLearner")
     )
     out[["ps"]] <- as.numeric(sl_out$SL.predict)
 
