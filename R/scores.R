@@ -44,6 +44,306 @@
 #' }
 #'
 #' @export
+# ComputeScores <- function(data, id, Y, event, X, A,
+#                           Xtrt = NULL,
+#                           doublepg = TRUE,
+#                           outer_CV = 5,
+#                           inner_CV = NULL,
+#                           stratifyCV = FALSE,
+#                           cores = 5, tau = NULL,
+#                           sl.seed = 100,
+#                           A.SL.library = c("SL.mean","SL.glm","SL.glmnet","SL.ranger","SL.xgboost"),
+#                           Y.SL.library = c("LIB_COXen","LIB_AFTggamma"),
+#                           A.method = "method.AUC", Y.method = "auc",
+#                           param.tune = NULL, ngrid = 2000,
+#                           param.weights.fix = NULL,
+#                           param.weights.init = NULL,
+#                           optim.method = "Nelder-Mead",
+#                           penalty = NULL,
+#                           pgcens = FALSE,
+#                           pscens = TRUE,
+#                           censmod = TRUE,
+#                           maxit = 1000,
+#                           model.pg = "cox",
+#                           standardize = FALSE,
+#                           superLearn = TRUE,
+#                           pslink = "logit",
+#                           pglink = "lognormal") {
+#
+#   # ---------- input validation (fast fail) ----------
+#   stopifnot(is.data.frame(data))
+#   for (nm in c(id, Y, event, A)) {
+#     if (!nm %in% names(data)) stop("Column '", nm, "' not found in data.", call. = FALSE)
+#   }
+#   if (!is.character(X) || length(X) < 1L) stop("X must be a non-empty character vector.", call. = FALSE)
+#   if (!all(X %in% names(data))) stop("Some X columns not found in data.", call. = FALSE)
+#   if (!is.null(Xtrt) && !all(Xtrt %in% names(data))) stop("Some Xtrt columns not found in data.", call. = FALSE)
+#   outer_CV <- as.integer(outer_CV)
+#   if (outer_CV < 2L) stop("outer_CV must be >= 2.", call. = FALSE)
+#   cores <- as.integer(cores)
+#   if (cores < 1L) stop("cores must be >= 1.", call. = FALSE)
+#
+#   # Event indicator must be 0/1 (or logical)
+#   Event <- data[[event]]
+#   if (is.logical(Event)) Event <- as.integer(Event)
+#   if (!all(Event %in% c(0L, 1L, NA_integer_))) {
+#     stop("'", event, "' must be coded 0/1 (1=event, 0=censored).", call. = FALSE)
+#   }
+#
+#   # Treatment indicator: accept -1/1 or 0/1
+#   AA <- data[[A]]
+#   A_bin <- ifelse(AA == 1, 1L, 0L)
+#   if (!all(A_bin %in% c(0L, 1L, NA_integer_))) stop("Treatment variable must be binary or -1/1.", call. = FALSE)
+#
+#   Id <- data[[id]]
+#   YY <- data[[Y]]
+#   XX <- data[, X, drop = FALSE]
+#   x  <- data.matrix(XX)
+#
+#   xtrt <- if (!is.null(Xtrt)) data.matrix(data[, Xtrt, drop = FALSE]) else x
+#
+#   loc1 <- which(A_bin == 1L)
+#   loc0 <- which(A_bin == 0L)
+#
+#   # stable return contract
+#   out <- data.frame(
+#     id     = Id,
+#     ps     = NA_real_,
+#     pg0    = NA_real_,
+#     pg1    = NA_real_,
+#     pscens = NA_real_,
+#     pgcens = NA_real_
+#   )
+#   names(out)[1] <- id
+#
+#   # ---------- helpers ----------
+#   pred_mean <- function(Smat, time_grid) {
+#     if (length(time_grid) != ncol(Smat)) stop("time_grid length mismatch with Smat.", call. = FALSE)
+#     if (any(diff(time_grid) <= 0)) stop("time_grid must be strictly increasing.", call. = FALSE)
+#     apply(Smat, 1, function(surv_i) {
+#       dt   <- diff(time_grid)
+#       mids <- (surv_i[-1] + surv_i[-length(surv_i)]) / 2
+#       sum(mids * dt)
+#     })
+#   }
+#
+#   parallel_mode <- if (cores > 1L && .Platform$OS.type != "windows") "multicore" else "seq"
+#
+#   # dependency guards
+#   if (superLearn) {
+#     if (!requireNamespace("SuperLearner", quietly = TRUE)) {
+#       stop("Package 'SuperLearner' is required when superLearn=TRUE.", call. = FALSE)
+#     }
+#   }
+#   # survival is effectively required for Surv/coxph branches
+#   if (!requireNamespace("survival", quietly = TRUE)) {
+#     stop("Package 'survival' is required.", call. = FALSE)
+#   }
+#   if (!superLearn && !requireNamespace("glmnet", quietly = TRUE)) {
+#     stop("Package 'glmnet' is required when superLearn=FALSE.", call. = FALSE)
+#   }
+#
+#   if (superLearn && !requireNamespace("survivalSL", quietly = TRUE)) {
+#     stop("Package 'survivalSL' is required when superLearn=TRUE", call. = FALSE)
+#   }
+#   if (!superLearn && model.pg == "aft" && !requireNamespace("flexsurv", quietly = TRUE)) {
+#     stop("Package 'flexsurv' is required for model.pg='aft'.", call. = FALSE)
+#   }
+#
+#   # ---------- main branches ----------
+#   if (censmod && superLearn) {
+#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: censoring scores (SL)")
+#
+#     # censoring PS: P(Event=1 | X) if that's what you intend
+#     if (pscens) {
+#       innerCvControl_value <- if (!is.null(inner_CV)) {
+#         rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
+#       } else NULL
+#
+#       set.seed(sl.seed, "L'Ecuyer-CMRG")
+#       sl_out <- SuperLearner::CV.SuperLearner(
+#         Y = Event,
+#         X = as.data.frame(x),
+#         family = stats::binomial(link = pslink),
+#         method = A.method,
+#         SL.library = A.SL.library,
+#         cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
+#         innerCvControl = innerCvControl_value,
+#         parallel = parallel_mode,
+#         env = getNamespace("SuperLearner")
+#       )
+#       out[["pscens"]] <- as.numeric(sl_out$SL.predict)
+#     }
+#
+#     if (pgcens) {
+#       # simple PG on uncensored only; you may want to revisit this estimand
+#       uncensored <- data[Event == 1L, c(Y, X, A), drop = FALSE]
+#       if (nrow(uncensored) > 0) {
+#         set.seed(sl.seed, "L'Ecuyer-CMRG")
+#         sl_fit <- SuperLearner::SuperLearner(
+#           Y = uncensored[[Y]],
+#           X = uncensored[, c(X, A), drop = FALSE],
+#           family = stats::gaussian(),
+#           SL.library = A.SL.library,
+#           cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
+#           env = getNamespace("SuperLearner")
+#         )
+#         out[["pgcens"]] <- as.numeric(predict(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred)
+#       }
+#     }
+#
+#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
+#
+#   } else if (!censmod && doublepg && superLearn) {
+#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: treatment PS + pg0/pg1 (SL)")
+#
+#     # treatment PS
+#     innerCvControl_value <- if (!is.null(inner_CV)) {
+#       rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
+#     } else NULL
+#
+#     set.seed(sl.seed, "L'Ecuyer-CMRG")
+#     sl_out <- SuperLearner::CV.SuperLearner(
+#       Y = A_bin,
+#       X = as.data.frame(xtrt),
+#       family = stats::binomial(link = pslink),
+#       method = A.method,
+#       SL.library = A.SL.library,
+#       cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
+#       innerCvControl = innerCvControl_value,
+#       parallel = parallel_mode,
+#       env = getNamespace("SuperLearner")
+#     )
+#     out[["ps"]] <- as.numeric(sl_out$SL.predict)
+#
+#     # prognostic via survivalSL (NOTE: survivalSL must exist in your package or dependency)
+#     # if (!exists("survivalSL", mode = "function")) {
+#     #   stop("Function 'survivalSL' not found. Include it in your package or import from its source.", call. = FALSE)
+#     # }
+#
+#     X_df <- data[, X, drop = FALSE]
+#     tmax <- if (is.null(tau)) max(YY, na.rm = TRUE) else tau
+#
+#     if (length(loc1) > 0) {
+#       survdata1 <- data[loc1, c(Y, event, X), drop = FALSE]
+#       f1 <- stats::as.formula(paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+")))
+#       slres1 <- survivalSL::survivalSL(
+#         formula = f1, methods = Y.SL.library, metric = Y.method, data = survdata1,
+#         cv = outer_CV, param.tune = param.tune, seed = sl.seed,
+#         param.weights.fix = param.weights.fix, param.weights.init = param.weights.init,
+#         maxit = maxit, penalty = penalty, show_progress = TRUE
+#       )
+#       grid1 <- seq(0, tmax, length.out = ngrid)
+#       pred1 <- predict(slres1, newdata = X_df, newtimes = grid1)
+#       out[["pg1"]] <- pred_mean(pred1$predictions$sl, pred1$times)
+#     }
+#
+#     if (length(loc0) > 0) {
+#       survdata0 <- data[loc0, c(Y, event, X), drop = FALSE]
+#       f0 <- stats::as.formula(paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+")))
+#       slres0 <- survivalSL::survivalSL(
+#         formula = f0, methods = Y.SL.library, metric = Y.method, data = survdata0,
+#         cv = outer_CV, param.tune = param.tune, seed = sl.seed,
+#         param.weights.fix = param.weights.fix, param.weights.init = param.weights.init,
+#         maxit = maxit, penalty = penalty, show_progress = TRUE
+#       )
+#       grid0 <- seq(0, tmax, length.out = ngrid)
+#       pred0 <- predict(slres0, newdata = X_df, newtimes = grid0)
+#       out[["pg0"]] <- pred_mean(pred0$predictions$sl, pred0$times)
+#     }
+#
+#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
+#
+#   } else if (censmod && !superLearn) {
+#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: censoring scores (glm/glmnet)")
+#
+#     # censoring PS
+#     if (pscens) {
+#       if (ncol(x) > 1L) {
+#         cvfit <- glmnet::cv.glmnet(x, Event, family = stats::binomial(link = pslink),
+#                                    nfolds = outer_CV, standardize = standardize)
+#         out[["pscens"]] <- as.numeric(predict(cvfit, newx = x, s = "lambda.min", type = "response"))
+#       } else {
+#         df1 <- data.frame(Event = Event, x = x[, 1])
+#         fit <- stats::glm(Event ~ x, data = df1, family = stats::binomial(link = pslink))
+#         out[["pscens"]] <- as.numeric(stats::predict(fit, newdata = df1, type = "response"))
+#       }
+#     }
+#
+#     # censoring PG (you used gaussian on Event previously; that seems off; keep as-is but consistent)
+#     if (pgcens) {
+#       Xpg <- data.matrix(data[, c(X, A), drop = FALSE])
+#       cvfit <- glmnet::cv.glmnet(Xpg, Event, family = "gaussian",
+#                                  nfolds = outer_CV, standardize = standardize)
+#       out[["pgcens"]] <- as.numeric(predict(cvfit, newx = Xpg, s = "lambda.min", type = "response"))
+#     }
+#
+#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
+#
+#   } else if (!censmod && doublepg && !superLearn) {
+#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: treatment PS + pg0/pg1 (glm/glmnet)")
+#
+#     # treatment PS
+#     if (ncol(xtrt) > 1L) {
+#       cvfit <- glmnet::cv.glmnet(xtrt, A_bin, family = stats::binomial(link = pslink),
+#                                  nfolds = outer_CV, standardize = standardize)
+#       out[["ps"]] <- as.numeric(predict(cvfit, newx = xtrt, s = "lambda.min", type = "response"))
+#     } else {
+#       df1 <- data.frame(A_bin = A_bin, xtrt = xtrt[, 1])
+#       fit <- stats::glm(A_bin ~ xtrt, data = df1, family = stats::binomial(link = pslink))
+#       out[["ps"]] <- as.numeric(stats::predict(fit, newdata = df1, type = "response"))
+#     }
+#
+#     # prognostic models
+#     if (model.pg == "cox") {
+#       if (length(loc1) > 0) {
+#         Y1 <- survival::Surv(YY[loc1], Event[loc1])
+#         X1 <- data.matrix(XX[loc1, , drop = FALSE])
+#         if (ncol(X1) > 1L) {
+#           cv1 <- glmnet::cv.glmnet(X1, Y1, family = "cox", nfolds = outer_CV, standardize = standardize)
+#           out[["pg1"]] <- as.numeric(predict(cv1, newx = x, s = "lambda.min", type = "link"))
+#         } else {
+#           dfc <- data.frame(time = YY[loc1], status = Event[loc1], x1 = X1[, 1])
+#           fit <- survival::coxph(survival::Surv(time, status) ~ x1, data = dfc)
+#           out[["pg1"]] <- as.numeric(stats::predict(fit, newdata = data.frame(x1 = x[, 1]), type = "lp"))
+#         }
+#       }
+#       if (length(loc0) > 0) {
+#         Y0 <- survival::Surv(YY[loc0], Event[loc0])
+#         X0 <- data.matrix(XX[loc0, , drop = FALSE])
+#         if (ncol(X0) > 1L) {
+#           cv0 <- glmnet::cv.glmnet(X0, Y0, family = "cox", nfolds = outer_CV, standardize = standardize)
+#           out[["pg0"]] <- as.numeric(predict(cv0, newx = x, s = "lambda.min", type = "link"))
+#         } else {
+#           dfc <- data.frame(time = YY[loc0], status = Event[loc0], x0 = X0[, 1])
+#           fit <- survival::coxph(survival::Surv(time, status) ~ x0, data = dfc)
+#           out[["pg0"]] <- as.numeric(stats::predict(fit, newdata = data.frame(x0 = x[, 1]), type = "lp"))
+#         }
+#       }
+#
+#     } else if (model.pg == "aft") {
+#       # AFT pg as mean survival time from flexsurvreg
+#       if (length(loc1) > 0) {
+#         d1 <- data.frame(time = YY[loc1], status = Event[loc1], XX[loc1, , drop = FALSE])
+#         fit1 <- flexsurv::flexsurvreg(survival::Surv(time, status) ~ ., data = d1, dist = pglink)
+#         out[["pg1"]] <- as.numeric(predict(fit1, newdata = as.data.frame(XX), type = "mean"))
+#       }
+#       if (length(loc0) > 0) {
+#         d0 <- data.frame(time = YY[loc0], status = Event[loc0], XX[loc0, , drop = FALSE])
+#         fit0 <- flexsurv::flexsurvreg(survival::Surv(time, status) ~ ., data = d0, dist = pglink)
+#         out[["pg0"]] <- as.numeric(predict(fit0, newdata = as.data.frame(XX), type = "mean"))
+#       }
+#     }
+#
+#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
+#   } else {
+#     stop("Unsupported combination of flags (censmod/doublepg/superLearn).", call. = FALSE)
+#   }
+#
+#   out
+# }
+
+
 ComputeScores <- function(data, id, Y, event, X, A,
                           Xtrt = NULL,
                           doublepg = TRUE,
@@ -70,30 +370,44 @@ ComputeScores <- function(data, id, Y, event, X, A,
                           pslink = "logit",
                           pglink = "lognormal") {
 
-  # ---------- input validation (fast fail) ----------
+  # ---------- input validation ----------
   stopifnot(is.data.frame(data))
+
   for (nm in c(id, Y, event, A)) {
-    if (!nm %in% names(data)) stop("Column '", nm, "' not found in data.", call. = FALSE)
+    if (!nm %in% names(data)) {
+      stop("Column '", nm, "' not found in data.", call. = FALSE)
+    }
   }
-  if (!is.character(X) || length(X) < 1L) stop("X must be a non-empty character vector.", call. = FALSE)
-  if (!all(X %in% names(data))) stop("Some X columns not found in data.", call. = FALSE)
-  if (!is.null(Xtrt) && !all(Xtrt %in% names(data))) stop("Some Xtrt columns not found in data.", call. = FALSE)
+
+  if (!is.character(X) || length(X) < 1L) {
+    stop("X must be a non-empty character vector.", call. = FALSE)
+  }
+  if (!all(X %in% names(data))) {
+    stop("Some X columns not found in data.", call. = FALSE)
+  }
+  if (!is.null(Xtrt) && !all(Xtrt %in% names(data))) {
+    stop("Some Xtrt columns not found in data.", call. = FALSE)
+  }
+
   outer_CV <- as.integer(outer_CV)
   if (outer_CV < 2L) stop("outer_CV must be >= 2.", call. = FALSE)
+
   cores <- as.integer(cores)
   if (cores < 1L) stop("cores must be >= 1.", call. = FALSE)
 
-  # Event indicator must be 0/1 (or logical)
+  ngrid <- max(2L, as.integer(ngrid))
+
   Event <- data[[event]]
   if (is.logical(Event)) Event <- as.integer(Event)
-  if (!all(Event %in% c(0L, 1L, NA_integer_))) {
+  if (!all(is.na(Event) | Event %in% c(0L, 1L))) {
     stop("'", event, "' must be coded 0/1 (1=event, 0=censored).", call. = FALSE)
   }
 
-  # Treatment indicator: accept -1/1 or 0/1
   AA <- data[[A]]
-  A_bin <- ifelse(AA == 1, 1L, 0L)
-  if (!all(A_bin %in% c(0L, 1L, NA_integer_))) stop("Treatment variable must be binary or -1/1.", call. = FALSE)
+  A_bin <- ifelse(is.na(AA), NA_integer_, ifelse(AA == 1, 1L, 0L))
+  if (!all(is.na(A_bin) | A_bin %in% c(0L, 1L))) {
+    stop("Treatment variable must be binary or -1/1.", call. = FALSE)
+  }
 
   Id <- data[[id]]
   YY <- data[[Y]]
@@ -105,7 +419,6 @@ ComputeScores <- function(data, id, Y, event, X, A,
   loc1 <- which(A_bin == 1L)
   loc0 <- which(A_bin == 0L)
 
-  # stable return contract
   out <- data.frame(
     id     = Id,
     ps     = NA_real_,
@@ -117,35 +430,139 @@ ComputeScores <- function(data, id, Y, event, X, A,
   names(out)[1] <- id
 
   # ---------- helpers ----------
+  normalize_surv_pred <- function(Smat, time_grid, tol = 1e-10) {
+    time_grid <- as.numeric(time_grid)
+
+    if (!length(time_grid)) {
+      stop("Prediction time grid is empty.", call. = FALSE)
+    }
+    if (anyNA(time_grid) || !all(is.finite(time_grid))) {
+      stop("Prediction time grid must be finite and non-missing.", call. = FALSE)
+    }
+
+    Smat <- if (is.null(dim(Smat))) {
+      matrix(as.numeric(Smat), nrow = 1L)
+    } else {
+      as.matrix(Smat)
+    }
+    storage.mode(Smat) <- "double"
+
+    # If returned as times x subjects instead of subjects x times, transpose
+    if (ncol(Smat) != length(time_grid) && nrow(Smat) == length(time_grid)) {
+      Smat <- t(Smat)
+    }
+
+    # If time_grid contains 0 but Smat starts at first positive time, prepend S(0)=1
+    if (ncol(Smat) + 1L == length(time_grid) &&
+        isTRUE(all.equal(time_grid[1], 0, tolerance = tol))) {
+      Smat <- cbind(1, Smat)
+    }
+
+    # If Smat includes an initial S(0)=1 column but time_grid does not, prepend 0
+    if (ncol(Smat) == length(time_grid) + 1L &&
+        all(abs(Smat[, 1] - 1) < 1e-8, na.rm = TRUE)) {
+      time_grid <- c(0, time_grid)
+    }
+
+    # Final reconciliation: use common aligned support
+    if (ncol(Smat) != length(time_grid)) {
+      k <- min(ncol(Smat), length(time_grid))
+      warning(
+        sprintf(
+          "Adjusted survival prediction grid: %d columns in Smat vs %d time points; using first %d aligned points.",
+          ncol(Smat), length(time_grid), k
+        ),
+        call. = FALSE
+      )
+      Smat <- Smat[, seq_len(k), drop = FALSE]
+      time_grid <- time_grid[seq_len(k)]
+    }
+
+    # Sort jointly
+    ord <- order(time_grid)
+    time_grid <- time_grid[ord]
+    Smat <- Smat[, ord, drop = FALSE]
+
+    # Drop duplicated times jointly
+    keep <- c(TRUE, diff(time_grid) > tol)
+    time_grid <- time_grid[keep]
+    Smat <- Smat[, keep, drop = FALSE]
+
+    # Ensure start at t=0 with S(0)=1
+    if (time_grid[1] > tol) {
+      time_grid <- c(0, time_grid)
+      Smat <- cbind(1, Smat)
+    } else {
+      time_grid[1] <- 0
+      Smat[, 1] <- 1
+    }
+
+    # Clamp into [0,1]
+    Smat[!is.finite(Smat)] <- NA_real_
+    Smat <- pmin(pmax(Smat, 0), 1)
+
+    # Fill internal missings and enforce monotone non-increasing survival
+    Smat <- t(apply(Smat, 1, function(z) {
+      if (all(is.na(z))) return(rep(NA_real_, length(z)))
+      idx <- which(!is.na(z))
+      z <- stats::approx(
+        x = idx, y = z[idx], xout = seq_along(z),
+        method = "linear", rule = 2
+      )$y
+      cummin(z)
+    }))
+
+    list(Smat = Smat, time_grid = time_grid)
+  }
+
   pred_mean <- function(Smat, time_grid) {
-    if (length(time_grid) != ncol(Smat)) stop("time_grid length mismatch with Smat.", call. = FALSE)
-    if (any(diff(time_grid) <= 0)) stop("time_grid must be strictly increasing.", call. = FALSE)
-    apply(Smat, 1, function(surv_i) {
-      dt   <- diff(time_grid)
-      mids <- (surv_i[-1] + surv_i[-length(surv_i)]) / 2
-      sum(mids * dt)
-    })
+    obj <- normalize_surv_pred(Smat, time_grid)
+    Smat <- obj$Smat
+    time_grid <- obj$time_grid
+
+    if (length(time_grid) < 2L) {
+      return(rep(0, nrow(Smat)))
+    }
+
+    dt <- diff(time_grid)
+    mids <- (Smat[, -1, drop = FALSE] + Smat[, -ncol(Smat), drop = FALSE]) / 2
+    rowSums(mids * matrix(dt, nrow = nrow(Smat), ncol = length(dt), byrow = TRUE))
+  }
+
+  predict_survival_mean <- function(fit, newdata, newtimes) {
+    pred <- predict(fit, newdata = newdata, newtimes = newtimes)
+
+    if (is.null(pred$predictions) || is.null(pred$predictions$sl) || is.null(pred$times)) {
+      stop(
+        "survivalSL::predict() did not return both 'predictions$sl' and 'times'.",
+        call. = FALSE
+      )
+    }
+
+    pred_mean(pred$predictions$sl, pred$times)
   }
 
   parallel_mode <- if (cores > 1L && .Platform$OS.type != "windows") "multicore" else "seq"
 
-  # dependency guards
+  # ---------- dependency guards ----------
   if (superLearn) {
     if (!requireNamespace("SuperLearner", quietly = TRUE)) {
       stop("Package 'SuperLearner' is required when superLearn=TRUE.", call. = FALSE)
     }
   }
-  # survival is effectively required for Surv/coxph branches
+
   if (!requireNamespace("survival", quietly = TRUE)) {
     stop("Package 'survival' is required.", call. = FALSE)
   }
+
   if (!superLearn && !requireNamespace("glmnet", quietly = TRUE)) {
     stop("Package 'glmnet' is required when superLearn=FALSE.", call. = FALSE)
   }
 
   if (superLearn && !requireNamespace("survivalSL", quietly = TRUE)) {
-    stop("Package 'survivalSL' is required when superLearn=TRUE", call. = FALSE)
+    stop("Package 'survivalSL' is required when superLearn=TRUE.", call. = FALSE)
   }
+
   if (!superLearn && model.pg == "aft" && !requireNamespace("flexsurv", quietly = TRUE)) {
     stop("Package 'flexsurv' is required for model.pg='aft'.", call. = FALSE)
   }
@@ -154,7 +571,6 @@ ComputeScores <- function(data, id, Y, event, X, A,
   if (censmod && superLearn) {
     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: censoring scores (SL)")
 
-    # censoring PS: P(Event=1 | X) if that's what you intend
     if (pscens) {
       innerCvControl_value <- if (!is.null(inner_CV)) {
         rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
@@ -176,7 +592,6 @@ ComputeScores <- function(data, id, Y, event, X, A,
     }
 
     if (pgcens) {
-      # simple PG on uncensored only; you may want to revisit this estimand
       uncensored <- data[Event == 1L, c(Y, X, A), drop = FALSE]
       if (nrow(uncensored) > 0) {
         set.seed(sl.seed, "L'Ecuyer-CMRG")
@@ -188,7 +603,9 @@ ComputeScores <- function(data, id, Y, event, X, A,
           cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
           env = getNamespace("SuperLearner")
         )
-        out[["pgcens"]] <- as.numeric(predict(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred)
+        out[["pgcens"]] <- as.numeric(
+          predict(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred
+        )
       }
     }
 
@@ -197,7 +614,6 @@ ComputeScores <- function(data, id, Y, event, X, A,
   } else if (!censmod && doublepg && superLearn) {
     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: treatment PS + pg0/pg1 (SL)")
 
-    # treatment PS
     innerCvControl_value <- if (!is.null(inner_CV)) {
       rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
     } else NULL
@@ -216,40 +632,53 @@ ComputeScores <- function(data, id, Y, event, X, A,
     )
     out[["ps"]] <- as.numeric(sl_out$SL.predict)
 
-    # prognostic via survivalSL (NOTE: survivalSL must exist in your package or dependency)
-    # if (!exists("survivalSL", mode = "function")) {
-    #   stop("Function 'survivalSL' not found. Include it in your package or import from its source.", call. = FALSE)
-    # }
-
     X_df <- data[, X, drop = FALSE]
     tmax <- if (is.null(tau)) max(YY, na.rm = TRUE) else tau
 
     if (length(loc1) > 0) {
       survdata1 <- data[loc1, c(Y, event, X), drop = FALSE]
-      f1 <- stats::as.formula(paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+")))
+      f1 <- stats::as.formula(
+        paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+"))
+      )
       slres1 <- survivalSL::survivalSL(
-        formula = f1, methods = Y.SL.library, metric = Y.method, data = survdata1,
-        cv = outer_CV, param.tune = param.tune, seed = sl.seed,
-        param.weights.fix = param.weights.fix, param.weights.init = param.weights.init,
-        maxit = maxit, penalty = penalty, show_progress = TRUE
+        formula = f1,
+        methods = Y.SL.library,
+        metric = Y.method,
+        data = survdata1,
+        cv = outer_CV,
+        param.tune = param.tune,
+        seed = sl.seed,
+        param.weights.fix = param.weights.fix,
+        param.weights.init = param.weights.init,
+        maxit = maxit,
+        penalty = penalty,
+        show_progress = TRUE
       )
       grid1 <- seq(0, tmax, length.out = ngrid)
-      pred1 <- predict(slres1, newdata = X_df, newtimes = grid1)
-      out[["pg1"]] <- pred_mean(pred1$predictions$sl, pred1$times)
+      out[["pg1"]] <- predict_survival_mean(slres1, newdata = X_df, newtimes = grid1)
     }
 
     if (length(loc0) > 0) {
       survdata0 <- data[loc0, c(Y, event, X), drop = FALSE]
-      f0 <- stats::as.formula(paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+")))
+      f0 <- stats::as.formula(
+        paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+"))
+      )
       slres0 <- survivalSL::survivalSL(
-        formula = f0, methods = Y.SL.library, metric = Y.method, data = survdata0,
-        cv = outer_CV, param.tune = param.tune, seed = sl.seed,
-        param.weights.fix = param.weights.fix, param.weights.init = param.weights.init,
-        maxit = maxit, penalty = penalty, show_progress = TRUE
+        formula = f0,
+        methods = Y.SL.library,
+        metric = Y.method,
+        data = survdata0,
+        cv = outer_CV,
+        param.tune = param.tune,
+        seed = sl.seed,
+        param.weights.fix = param.weights.fix,
+        param.weights.init = param.weights.init,
+        maxit = maxit,
+        penalty = penalty,
+        show_progress = TRUE
       )
       grid0 <- seq(0, tmax, length.out = ngrid)
-      pred0 <- predict(slres0, newdata = X_df, newtimes = grid0)
-      out[["pg0"]] <- pred_mean(pred0$predictions$sl, pred0$times)
+      out[["pg0"]] <- predict_survival_mean(slres0, newdata = X_df, newtimes = grid0)
     }
 
     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
@@ -257,12 +686,17 @@ ComputeScores <- function(data, id, Y, event, X, A,
   } else if (censmod && !superLearn) {
     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: censoring scores (glm/glmnet)")
 
-    # censoring PS
     if (pscens) {
       if (ncol(x) > 1L) {
-        cvfit <- glmnet::cv.glmnet(x, Event, family = stats::binomial(link = pslink),
-                                   nfolds = outer_CV, standardize = standardize)
-        out[["pscens"]] <- as.numeric(predict(cvfit, newx = x, s = "lambda.min", type = "response"))
+        cvfit <- glmnet::cv.glmnet(
+          x, Event,
+          family = stats::binomial(link = pslink),
+          nfolds = outer_CV,
+          standardize = standardize
+        )
+        out[["pscens"]] <- as.numeric(
+          predict(cvfit, newx = x, s = "lambda.min", type = "response")
+        )
       } else {
         df1 <- data.frame(Event = Event, x = x[, 1])
         fit <- stats::glm(Event ~ x, data = df1, family = stats::binomial(link = pslink))
@@ -270,12 +704,17 @@ ComputeScores <- function(data, id, Y, event, X, A,
       }
     }
 
-    # censoring PG (you used gaussian on Event previously; that seems off; keep as-is but consistent)
     if (pgcens) {
       Xpg <- data.matrix(data[, c(X, A), drop = FALSE])
-      cvfit <- glmnet::cv.glmnet(Xpg, Event, family = "gaussian",
-                                 nfolds = outer_CV, standardize = standardize)
-      out[["pgcens"]] <- as.numeric(predict(cvfit, newx = Xpg, s = "lambda.min", type = "response"))
+      cvfit <- glmnet::cv.glmnet(
+        Xpg, Event,
+        family = "gaussian",
+        nfolds = outer_CV,
+        standardize = standardize
+      )
+      out[["pgcens"]] <- as.numeric(
+        predict(cvfit, newx = Xpg, s = "lambda.min", type = "response")
+      )
     }
 
     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
@@ -283,68 +722,101 @@ ComputeScores <- function(data, id, Y, event, X, A,
   } else if (!censmod && doublepg && !superLearn) {
     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: treatment PS + pg0/pg1 (glm/glmnet)")
 
-    # treatment PS
     if (ncol(xtrt) > 1L) {
-      cvfit <- glmnet::cv.glmnet(xtrt, A_bin, family = stats::binomial(link = pslink),
-                                 nfolds = outer_CV, standardize = standardize)
-      out[["ps"]] <- as.numeric(predict(cvfit, newx = xtrt, s = "lambda.min", type = "response"))
+      cvfit <- glmnet::cv.glmnet(
+        xtrt, A_bin,
+        family = stats::binomial(link = pslink),
+        nfolds = outer_CV,
+        standardize = standardize
+      )
+      out[["ps"]] <- as.numeric(
+        predict(cvfit, newx = xtrt, s = "lambda.min", type = "response")
+      )
     } else {
       df1 <- data.frame(A_bin = A_bin, xtrt = xtrt[, 1])
       fit <- stats::glm(A_bin ~ xtrt, data = df1, family = stats::binomial(link = pslink))
       out[["ps"]] <- as.numeric(stats::predict(fit, newdata = df1, type = "response"))
     }
 
-    # prognostic models
     if (model.pg == "cox") {
       if (length(loc1) > 0) {
         Y1 <- survival::Surv(YY[loc1], Event[loc1])
         X1 <- data.matrix(XX[loc1, , drop = FALSE])
         if (ncol(X1) > 1L) {
-          cv1 <- glmnet::cv.glmnet(X1, Y1, family = "cox", nfolds = outer_CV, standardize = standardize)
-          out[["pg1"]] <- as.numeric(predict(cv1, newx = x, s = "lambda.min", type = "link"))
+          cv1 <- glmnet::cv.glmnet(
+            X1, Y1,
+            family = "cox",
+            nfolds = outer_CV,
+            standardize = standardize
+          )
+          out[["pg1"]] <- as.numeric(
+            predict(cv1, newx = x, s = "lambda.min", type = "link")
+          )
         } else {
           dfc <- data.frame(time = YY[loc1], status = Event[loc1], x1 = X1[, 1])
           fit <- survival::coxph(survival::Surv(time, status) ~ x1, data = dfc)
-          out[["pg1"]] <- as.numeric(stats::predict(fit, newdata = data.frame(x1 = x[, 1]), type = "lp"))
+          out[["pg1"]] <- as.numeric(
+            stats::predict(fit, newdata = data.frame(x1 = x[, 1]), type = "lp")
+          )
         }
       }
+
       if (length(loc0) > 0) {
         Y0 <- survival::Surv(YY[loc0], Event[loc0])
         X0 <- data.matrix(XX[loc0, , drop = FALSE])
         if (ncol(X0) > 1L) {
-          cv0 <- glmnet::cv.glmnet(X0, Y0, family = "cox", nfolds = outer_CV, standardize = standardize)
-          out[["pg0"]] <- as.numeric(predict(cv0, newx = x, s = "lambda.min", type = "link"))
+          cv0 <- glmnet::cv.glmnet(
+            X0, Y0,
+            family = "cox",
+            nfolds = outer_CV,
+            standardize = standardize
+          )
+          out[["pg0"]] <- as.numeric(
+            predict(cv0, newx = x, s = "lambda.min", type = "link")
+          )
         } else {
           dfc <- data.frame(time = YY[loc0], status = Event[loc0], x0 = X0[, 1])
           fit <- survival::coxph(survival::Surv(time, status) ~ x0, data = dfc)
-          out[["pg0"]] <- as.numeric(stats::predict(fit, newdata = data.frame(x0 = x[, 1]), type = "lp"))
+          out[["pg0"]] <- as.numeric(
+            stats::predict(fit, newdata = data.frame(x0 = x[, 1]), type = "lp")
+          )
         }
       }
 
     } else if (model.pg == "aft") {
-      # AFT pg as mean survival time from flexsurvreg
       if (length(loc1) > 0) {
         d1 <- data.frame(time = YY[loc1], status = Event[loc1], XX[loc1, , drop = FALSE])
-        fit1 <- flexsurv::flexsurvreg(survival::Surv(time, status) ~ ., data = d1, dist = pglink)
-        out[["pg1"]] <- as.numeric(predict(fit1, newdata = as.data.frame(XX), type = "mean"))
+        fit1 <- flexsurv::flexsurvreg(
+          survival::Surv(time, status) ~ .,
+          data = d1,
+          dist = pglink
+        )
+        out[["pg1"]] <- as.numeric(
+          predict(fit1, newdata = as.data.frame(XX), type = "mean")
+        )
       }
+
       if (length(loc0) > 0) {
         d0 <- data.frame(time = YY[loc0], status = Event[loc0], XX[loc0, , drop = FALSE])
-        fit0 <- flexsurv::flexsurvreg(survival::Surv(time, status) ~ ., data = d0, dist = pglink)
-        out[["pg0"]] <- as.numeric(predict(fit0, newdata = as.data.frame(XX), type = "mean"))
+        fit0 <- flexsurv::flexsurvreg(
+          survival::Surv(time, status) ~ .,
+          data = d0,
+          dist = pglink
+        )
+        out[["pg0"]] <- as.numeric(
+          predict(fit0, newdata = as.data.frame(XX), type = "mean")
+        )
       }
     }
 
     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
+
   } else {
     stop("Unsupported combination of flags (censmod/doublepg/superLearn).", call. = FALSE)
   }
 
   out
 }
-
-
-
 
 #' Compute stage-specific treatment propensity and prognostic “double scores”
 #'
