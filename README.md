@@ -3,12 +3,6 @@
 
 # DRMLSurv
 
-<!-- <!-- badges: start -->
-
-–\>
-<!-- [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml) -->
-<!-- <!-- badges: end --> –\>
-
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)

@@ -15,10 +15,6 @@ knitr::opts_chunk$set(
 
 # DRMLSurv
 
-<!-- <!-- badges: start --> -->
-<!-- [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml) -->
-<!-- <!-- badges: end --> -->
-
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
