@@ -6,7 +6,16 @@
 \alias{DRMLSurv-package}
 \title{DRMLSurv: Doubly Robust ML and Matching for Two-Stage Survival Outcomes}
 \description{
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
+
 Implements a two-stage survival analysis pipeline that combines (i) imputation of censored stage-specific survival times via donor matching, (ii) construction of matched counterfactual outcomes under static and dynamic treatment regimes, and (iii) estimation of optimal dynamic treatment rules using machine learning and cross-fitting. The toolkit supports nearest and full matching, optional exact matching, balance diagnostics, and flexible censoring/propensity score models via DoubleScore/SuperLearner-style learners.
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://ericanto0.github.io/DRMLSurv/}
+}
+
 }
 \author{
 \strong{Maintainer}: Eric Anto \email{eric.anto@utah.edu}

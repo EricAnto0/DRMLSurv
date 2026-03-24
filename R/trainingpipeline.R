@@ -198,24 +198,24 @@ Drmatch <- function(
     # assign("SL.glmnet.tune1", SL.glmnet.tune1, envir = .GlobalEnv)
     # assign("SL.glmnet.tune2", SL.glmnet.tune2, envir = .GlobalEnv)
 
-    SL.glmnet.tune1 <- function(...) SuperLearner::SL.glmnet(..., penalty.factor = penalty1)
-    SL.glmnet.tune2 <- function(...) SuperLearner::SL.glmnet(..., penalty.factor = penalty2)
-
-    if (usepenalty) {
-      penalty2 <- rep(1, length(names.var2))
-      penalty1 <- rep(1, length(names.var1))
-      names(penalty2) <- names.var2
-      names(penalty1) <- names.var1
-      penalty2[c(1:3)] <- 0
-      penalty1[c(1)] <- 0
-      A.SL.library1 <- c("SL.glmnet.tune1", A.SL.library)
-      A.SL.library2 <- c("SL.glmnet.tune2", A.SL.library)
-    } else {
+    # SL.glmnet.tune1 <- function(...) SuperLearner::SL.glmnet(..., penalty.factor = penalty1)
+    # SL.glmnet.tune2 <- function(...) SuperLearner::SL.glmnet(..., penalty.factor = penalty2)
+    #
+    # if (usepenalty) {
+    #   penalty2 <- rep(1, length(names.var2))
+    #   penalty1 <- rep(1, length(names.var1))
+    #   names(penalty2) <- names.var2
+    #   names(penalty1) <- names.var1
+    #   penalty2[c(1:3)] <- 0
+    #   penalty1[c(1)] <- 0
+    #   A.SL.library1 <- c("SL.glmnet.tune1", A.SL.library)
+    #   A.SL.library2 <- c("SL.glmnet.tune2", A.SL.library)
+    # } else {
       penalty1 <- NULL
       penalty2 <- NULL
       A.SL.library1 <- A.SL.library
       A.SL.library2 <- A.SL.library
-    }
+   # }
 
     # standardize internal time variables on full training data
     mldata$OY.sd <- as.numeric(scale(mldata[[OY.var]]))
@@ -235,8 +235,8 @@ Drmatch <- function(
       OY.var       = OY.var,
       A1.var       = A1.var,
       A2.var       = A2.var,
-      names.var1   = if (adjustdelta1) c(names.var1, A1.var, 'Y1.sd') else c(names.var1, A1.var, 'OY.sd'),
-      names.var2   = c(names.var2, A1.var, A2.var, 'Y1.sd', 'Y2.sd'),
+      names.var1   = if (adjustdelta1) unique(c(names.var1, A1.var, 'Y1.sd')) else unique(c(names.var1, A1.var, 'OY.sd')),
+      names.var2   = unique(c(names.var2, A1.var, A2.var, 'Y1.sd', 'Y2.sd')),
       exact1.vars  = exact1.vars,
       exact2.vars  = exact2.vars,
       usecov       = FALSE,

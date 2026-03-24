@@ -115,7 +115,8 @@ predict.Drmatch <- function(object, newdata, stage = c("both", "stage1", "stage2
 
     if (any(ok1)) {
       A1.opt[ok1] <- as.numeric(as.character(
-        predict(object$stage1_model, data = newdata[ok1, object$names.var1, drop = FALSE])$predictions
+      #ranger:::predict.ranger(object$stage1_model, data = newdata[ok1, object$names.var1, drop = FALSE])$predictions
+      predict(object$stage1_model, data = newdata[ok1, object$names.var1, drop = FALSE])$predictions
       ))
     }
 
@@ -138,6 +139,7 @@ predict.Drmatch <- function(object, newdata, stage = c("both", "stage1", "stage2
     A2.opt <- rep(NA_real_, nrow(newdata))
     if (any(ok2)) {
       A2.opt[ok2] <- as.numeric(as.character(
+        #ranger:::predict.ranger(object$stage2_model, data = newdata[ok2, object$names.var2, drop = FALSE])$predictions
         predict(object$stage2_model, data = newdata[ok2, object$names.var2, drop = FALSE])$predictions
       ))
     }

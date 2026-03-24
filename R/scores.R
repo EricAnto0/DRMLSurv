@@ -142,6 +142,10 @@ ComputeScores <- function(data, id, Y, event, X, A,
   if (!superLearn && !requireNamespace("glmnet", quietly = TRUE)) {
     stop("Package 'glmnet' is required when superLearn=FALSE.", call. = FALSE)
   }
+
+  if (!superLearn && !requireNamespace("survivalSL", quietly = TRUE)) {
+    stop("Package 'survivalSL' is required when superLearn=TRUE", call. = FALSE)
+  }
   if (!superLearn && model.pg == "aft" && !requireNamespace("flexsurv", quietly = TRUE)) {
     stop("Package 'flexsurv' is required for model.pg='aft'.", call. = FALSE)
   }
@@ -182,7 +186,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
           SL.library = A.SL.library,
           cvControl = list(V = outer_CV, stratifyCV = stratifyCV)
         )
-        out[["pgcens"]] <- as.numeric(stats::predict(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred)
+        out[["pgcens"]] <- as.numeric(SuperLearner:::predict.SuperLearner(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred)
       }
     }
 
@@ -210,9 +214,9 @@ ComputeScores <- function(data, id, Y, event, X, A,
     out[["ps"]] <- as.numeric(sl_out$SL.predict)
 
     # prognostic via survivalSL (NOTE: survivalSL must exist in your package or dependency)
-    if (!exists("survivalSL", mode = "function")) {
-      stop("Function 'survivalSL' not found. Include it in your package or import from its source.", call. = FALSE)
-    }
+    # if (!exists("survivalSL", mode = "function")) {
+    #   stop("Function 'survivalSL' not found. Include it in your package or import from its source.", call. = FALSE)
+    # }
 
     X_df <- data[, X, drop = FALSE]
     tmax <- if (is.null(tau)) max(YY, na.rm = TRUE) else tau
@@ -227,7 +231,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         maxit = maxit, penalty = penalty, show_progress = TRUE
       )
       grid1 <- seq(0, tmax, length.out = ngrid)
-      pred1 <- predict(slres1, newdata = X_df, newtimes = grid1)
+      pred1 <- survivalSL:::predict.sltime(slres1, newdata = X_df, newtimes = grid1)
       out[["pg1"]] <- pred_mean(pred1$predictions$sl, pred1$times)
     }
 
@@ -241,7 +245,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         maxit = maxit, penalty = penalty, show_progress = TRUE
       )
       grid0 <- seq(0, tmax, length.out = ngrid)
-      pred0 <- predict(slres0, newdata = X_df, newtimes = grid0)
+      pred0 <- survivalSL:::predict.sltime(slres0, newdata = X_df, newtimes = grid0)
       out[["pg0"]] <- pred_mean(pred0$predictions$sl, pred0$times)
     }
 

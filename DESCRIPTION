@@ -31,17 +31,22 @@ Imports:
     ranger,
     randomForestSRC,
     mltools,
-    survivalSL
-Suggests:
-    ggplot2,
+    survival,
+    survivalSL,
     SuperLearner,
     glmnet,
-    survival,
-    flexsurv,
+    flexsurv
+Suggests:
+    ggplot2,
     optmatch,
     cobalt,
     doSNOW,
     knitr,
-    rmarkdown
+    rmarkdown,
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
 URL: https://ericanto0.github.io/DRMLSurv/
+Depends: 
+    R (>= 3.5)
+LazyData: true
+Config/testthat/edition: 3

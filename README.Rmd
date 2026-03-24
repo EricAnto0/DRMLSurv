@@ -21,7 +21,6 @@ knitr::opts_chunk$set(
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 [![pkgdown](https://img.shields.io/badge/pkgdown-site-blue)](https://EricAnto0.github.io/DRMLSurv/)
 [![codecov](https://codecov.io/gh/EricAnto0/DRMLSurv/branch/main/graph/badge.svg)](https://codecov.io/gh/EricAnto0/DRMLSurv)
-[![Codecov test coverage](https://codecov.io/gh/EricAnto0/DRMLSurv/graph/badge.svg)](https://app.codecov.io/gh/EricAnto0/DRMLSurv)
 <!-- badges: end -->
 
 <img src="man/figures/logo.png" align="right" height="180" />
