@@ -9,6 +9,12 @@ supports nearest and full matching, optional exact matching, balance
 diagnostics, and flexible censoring/propensity score models via
 DoubleScore/SuperLearner-style learners.
 
+## See also
+
+Useful links:
+
+- <https://ericanto0.github.io/DRMLSurv/>
+
 ## Author
 
 **Maintainer**: Eric Anto <eric.anto@utah.edu>

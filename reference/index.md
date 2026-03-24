@@ -6,6 +6,13 @@
   : Compute propensity and prognostic scores (treatment- or
   censoring-based)
 
+- [`DATASET`](https://ericanto0.github.io/DRMLSurv/reference/DATASET.md)
+  :
+
+  Two-stage example Small example dataset for demonstrating matching,
+  censoring imputation, and treatment-rule learning functions in
+  DRMLSurv.
+
 - [`Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/Drmatch.md)
   : Two-stage DTR learning/evaluation pipeline with cross-fitting
 
