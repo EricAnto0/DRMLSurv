@@ -44,3 +44,4 @@ Suggests:
     knitr,
     rmarkdown
 VignetteBuilder: knitr
+URL: https://ericanto0.github.io/DRMLSurv/
