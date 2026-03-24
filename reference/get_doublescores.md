@@ -2,11 +2,11 @@
 
 Computes and attaches stage-specific *double scores* for a two-stage
 treatment setting. The function is a thin orchestrator around
-[`ComputeScores`](ComputeScores.md) that: (i) restricts to stage-2
-entrants (`eta2==1`) to compute stage-2 scores using `A2` and `Y2`, then
-(ii) computes stage-1 scores on the full cohort using `A1` and either
-`OY` (overall outcome) or `Y1` (stage-1 time) depending on
-`adjustdelta1`.
+[`ComputeScores`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+that: (i) restricts to stage-2 entrants (`eta2==1`) to compute stage-2
+scores using `A2` and `Y2`, then (ii) computes stage-1 scores on the
+full cohort using `A1` and either `OY` (overall outcome) or `Y1`
+(stage-1 time) depending on `adjustdelta1`.
 
 The output is the original dataset augmented with both *raw* score
 columns (propensities and prognostic scores) and *standardized* score
@@ -181,7 +181,8 @@ get_doublescores(
 - plotps:
 
   Logical. If TRUE, plots propensity distributions by treatment at each
-  stage using [`propensityplot()`](propensityplot.md).
+  stage using
+  [`propensityplot()`](https://ericanto0.github.io/DRMLSurv/reference/propensityplot.md).
 
 - model.pg:
 
@@ -246,13 +247,15 @@ treatment level: `pg0` (under `A=0`) and `pg1` (under `A=1`). If
 `doublepg=FALSE`, a single prognostic score `pg` is computed.
 
 **Stage 2.** Subjects are subset to `eta2==1` and
-[`ComputeScores()`](ComputeScores.md) is called with `Y=Y2.var`,
-`A=A2.var`, covariates `names.var2` (prognostic model) and `Xtrt2`
-(treatment model). Stage-2 results are merged back to the full dataset;
-non-entrants receive `NA` for stage-2 scores.
+[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+is called with `Y=Y2.var`, `A=A2.var`, covariates `names.var2`
+(prognostic model) and `Xtrt2` (treatment model). Stage-2 results are
+merged back to the full dataset; non-entrants receive `NA` for stage-2
+scores.
 
-**Stage 1.** [`ComputeScores()`](ComputeScores.md) is called on the full
-cohort with `A=A1.var` and either:
+**Stage 1.**
+[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+is called on the full cohort with `A=A1.var` and either:
 
 - `Y=OY.var, event=delta.var` if `adjustdelta1=FALSE`, or
 
@@ -283,5 +286,5 @@ is optional.
 
 ## See also
 
-[`ComputeScores`](ComputeScores.md),
-[`propensityplot`](propensityplot.md)
+[`ComputeScores`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md),
+[`propensityplot`](https://ericanto0.github.io/DRMLSurv/reference/propensityplot.md)

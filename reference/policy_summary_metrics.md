@@ -246,8 +246,8 @@ rule that assigns subject-level values based on the estimated treatment.
 
 ## See also
 
-[`summary.Drmatch()`](summary.Drmatch.md),
-[`print.summary.Drmatch()`](print.summary.Drmatch.md),
+[`summary.Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/summary.Drmatch.md),
+[`print.summary.Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/print.summary.Drmatch.md),
 [`caret::confusionMatrix()`](https://rdrr.io/pkg/caret/man/confusionMatrix.html),
 [`mltools::mcc()`](https://rdrr.io/pkg/mltools/man/mcc.html)
 

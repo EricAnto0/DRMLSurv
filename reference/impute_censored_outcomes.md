@@ -10,14 +10,16 @@ leveraging learned censoring propensity and prognostic scores in the
 matching distance.
 
 Matching is performed by helper routines
-[`impute_censored_stage2()`](impute_censored_stage2.md) and
-[`impute_censored_stage1()`](impute_censored_stage1.md), which implement
-nearest-neighbor or optimal matching using Mahalanobis or other
-distances, with optional exact matching constraints. When
+[`impute_censored_stage2()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_stage2.md)
+and
+[`impute_censored_stage1()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_stage1.md),
+which implement nearest-neighbor or optimal matching using Mahalanobis
+or other distances, with optional exact matching constraints. When
 `usecov=FALSE`, matching covariates are replaced by learned censoring
-scores computed by [`ComputeScores()`](ComputeScores.md): `pscens` (a
-censoring propensity score) and/or `pgcens` (a censoring prognostic
-score).
+scores computed by
+[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md):
+`pscens` (a censoring propensity score) and/or `pgcens` (a censoring
+prognostic score).
 
 ## Usage
 
@@ -252,10 +254,10 @@ censoring scores may also be present, depending on `pscens` and
 **Stage-2 imputation.** The function subsets to `eta2==1` and imputes
 `Y2` for censored subjects using donors with observed stage-2 outcomes,
 subject to donor eligibility constraints encoded in
-[`impute_censored_stage2()`](impute_censored_stage2.md) (e.g., donor
-observed time exceeding the recipient’s observed time). The result is
-stored as `compY2`. For uncensored subjects, `compY2` is set to the
-observed `Y2`.
+[`impute_censored_stage2()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_stage2.md)
+(e.g., donor observed time exceeding the recipient’s observed time). The
+result is stored as `compY2`. For uncensored subjects, `compY2` is set
+to the observed `Y2`.
 
 **Stage-1 composite outcome.** A composite outcome `compOY` is
 constructed as `compOY = Y1 + compY2` for stage-2 entrants; for
@@ -280,5 +282,5 @@ opposite convention, you must recode before calling this function.
 
 ## See also
 
-[`ComputeScores`](ComputeScores.md), `impute_censored_stage2`,
-`impute_censored_stage1`
+[`ComputeScores`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md),
+`impute_censored_stage2`, `impute_censored_stage1`

@@ -31,47 +31,54 @@ library(DRMLSurv)
 
 ## All functions
 
-- [`ComputeScores()`](ComputeScores.md) : Compute propensity and
-  prognostic scores (treatment- or censoring-based)
+- [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  : Compute propensity and prognostic scores (treatment- or
+  censoring-based)
 
-- [`Drmatch()`](Drmatch.md) : Two-stage DTR learning/evaluation pipeline
-  with cross-fitting
+- [`Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/Drmatch.md)
+  : Two-stage DTR learning/evaluation pipeline with cross-fitting
 
-- [`get_doublescores()`](get_doublescores.md) : Compute stage-specific
-  treatment propensity and prognostic “double scores”
+- [`get_doublescores()`](https://ericanto0.github.io/DRMLSurv/reference/get_doublescores.md)
+  : Compute stage-specific treatment propensity and prognostic “double
+  scores”
 
-- [`impute_censored_outcomes()`](impute_censored_outcomes.md) : Impute
-  censored stage-specific outcomes via matching with optional learned
-  censoring scores
+- [`impute_censored_outcomes()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_outcomes.md)
+  : Impute censored stage-specific outcomes via matching with optional
+  learned censoring scores
 
-- [`impute_censored_stage1()`](impute_censored_stage1.md) : Impute
-  censored stage-1 composite outcomes via constrained donor matching
+- [`impute_censored_stage1()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_stage1.md)
+  : Impute censored stage-1 composite outcomes via constrained donor
+  matching
 
-- [`impute_censored_stage2()`](impute_censored_stage2.md) : Impute
-  censored stage-2 outcomes via constrained donor matching
+- [`impute_censored_stage2()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_stage2.md)
+  : Impute censored stage-2 outcomes via constrained donor matching
 
-- [`matchpotential_DTR()`](matchpotential_DTR.md) : Construct matched
-  counterfactual outcomes for a (single-stage) treatment contrast
+- [`matchpotential_DTR()`](https://ericanto0.github.io/DRMLSurv/reference/matchpotential_DTR.md)
+  : Construct matched counterfactual outcomes for a (single-stage)
+  treatment contrast
 
-- [`my_score.Surv()`](my_score.Surv.md) : Compute a value score under a
-  candidate treatment rule
+- [`my_score.Surv()`](https://ericanto0.github.io/DRMLSurv/reference/my_score.Surv.md)
+  : Compute a value score under a candidate treatment rule
 
-- [`policy_summary_metrics()`](policy_summary_metrics.md) : Summarize
-  policy performance metrics for a two-stage treatment regime
+- [`policy_summary_metrics()`](https://ericanto0.github.io/DRMLSurv/reference/policy_summary_metrics.md)
+  : Summarize policy performance metrics for a two-stage treatment
+  regime
 
-- [`predict(`*`<Drmatch>`*`)`](predict.Drmatch.md) : Predict optimal
-  treatment decisions from a fitted Drmatch object
+- [`predict(`*`<Drmatch>`*`)`](https://ericanto0.github.io/DRMLSurv/reference/predict.Drmatch.md)
+  : Predict optimal treatment decisions from a fitted Drmatch object
 
-- [`print(`*`<summary.Drmatch>`*`)`](print.summary.Drmatch.md) : Print a
-  summary.Drmatch object
+- [`print(`*`<summary.Drmatch>`*`)`](https://ericanto0.github.io/DRMLSurv/reference/print.summary.Drmatch.md)
+  : Print a summary.Drmatch object
 
-- [`propensityplot()`](propensityplot.md) : Plot propensity (or
-  censoring) score overlap by group
+- [`propensityplot()`](https://ericanto0.github.io/DRMLSurv/reference/propensityplot.md)
+  : Plot propensity (or censoring) score overlap by group
 
-- [`rfdtr()`](rfdtr.md) : Tune and fit a random-forest DTR policy model
-  with (optional) cross-validation
+- [`rfdtr()`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md) :
+  Tune and fit a random-forest DTR policy model with (optional)
+  cross-validation
 
-- [`summary(`*`<Drmatch>`*`)`](summary.Drmatch.md) :
+- [`summary(`*`<Drmatch>`*`)`](https://ericanto0.github.io/DRMLSurv/reference/summary.Drmatch.md)
+  :
 
   Summarize a fitted `Drmatch` object on new data
 
@@ -79,4 +86,4 @@ library(DRMLSurv)
 
 ### All vignettes
 
-- [DRMLSurv_workflow](DRMLSurv_workflow.md):
+- [DRMLSurv_workflow](https://ericanto0.github.io/DRMLSurv/articles/DRMLSurv_workflow.md):

@@ -6,9 +6,10 @@ cross-fitting (default 5 folds). Within each fold, the function imputes
 censoring-related composite outcomes on the training partition,
 constructs double scores (propensity/prognostic scores) when requested,
 performs matching-based pseudo-outcome construction for stage 2 and
-stage 1, fits random-forest policies via [`rfdtr`](rfdtr.md), applies
-the learned rules to the held-out fold, and returns fold-level value
-summaries and benchmark comparisons.
+stage 1, fits random-forest policies via
+[`rfdtr`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md),
+applies the learned rules to the held-out fold, and returns fold-level
+value summaries and benchmark comparisons.
 
 ## Usage
 
@@ -151,7 +152,7 @@ Drmatch(
 - Y.SL.library:
 
   Candidate learners for outcome/censoring models used in
-  [`ComputeScores()`](ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
 
 - A.method:
 
@@ -203,7 +204,7 @@ Drmatch(
 - useds:
 
   Logical; if `TRUE`, compute/use double scores via
-  [`get_doublescores`](get_doublescores.md).
+  [`get_doublescores`](https://ericanto0.github.io/DRMLSurv/reference/get_doublescores.md).
 
 - Taus:
 
@@ -213,18 +214,20 @@ Drmatch(
 - adjustdelta1:
 
   Logical; if `TRUE`, modifies stage-1 censoring indicator as in
-  [`impute_censored_outcomes()`](impute_censored_outcomes.md) and
-  [`get_doublescores()`](get_doublescores.md).
+  [`impute_censored_outcomes()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_outcomes.md)
+  and
+  [`get_doublescores()`](https://ericanto0.github.io/DRMLSurv/reference/get_doublescores.md).
 
 - modeltype:
 
-  Character; model type for policy learning in [`rfdtr`](rfdtr.md)
+  Character; model type for policy learning in
+  [`rfdtr`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md)
   (e.g., `"ranger"`).
 
 - usecv:
 
   Logical; if `TRUE`, tune policy learner with internal CV in
-  [`rfdtr`](rfdtr.md).
+  [`rfdtr`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md).
 
 - doublepg:
 
@@ -243,7 +246,8 @@ Drmatch(
 - superLearn:
 
   Logical; if `TRUE`, use SuperLearner; if `FALSE`, use glmnet-only path
-  where implemented by [`ComputeScores()`](ComputeScores.md).
+  where implemented by
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
 
 - pslink:
 
@@ -258,11 +262,13 @@ Drmatch(
 - distance:
 
   Matching distance used by
-  [`matchpotential_DTR`](matchpotential_DTR.md) (e.g., `"mahalanobis"`).
+  [`matchpotential_DTR`](https://ericanto0.github.io/DRMLSurv/reference/matchpotential_DTR.md)
+  (e.g., `"mahalanobis"`).
 
 - method:
 
-  Matching method used in [`matchpotential_DTR`](matchpotential_DTR.md)
+  Matching method used in
+  [`matchpotential_DTR`](https://ericanto0.github.io/DRMLSurv/reference/matchpotential_DTR.md)
   (e.g., `"nearest"` or `"full"`).
 
 - K:
@@ -311,22 +317,27 @@ on the stage-1 observed treatment `A1.var`. For each fold:
     `Y2.sd`).
 
 3.  Impute censoring-related composite outcomes on the training fold via
-    [`impute_censored_outcomes`](impute_censored_outcomes.md)
+    [`impute_censored_outcomes`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_outcomes.md)
     (internally calling stage-2 then stage-1 imputation).
 
 4.  Optionally compute double scores on the imputed training fold via
-    [`get_doublescores`](get_doublescores.md).
+    [`get_doublescores`](https://ericanto0.github.io/DRMLSurv/reference/get_doublescores.md).
 
 5.  Stage 2 (among `eta2==1`): build matched opposite-arm
-    pseudo-outcomes via [`matchpotential_DTR`](matchpotential_DTR.md),
-    tune/fit a random-forest policy via [`rfdtr`](rfdtr.md), and compute
-    an estimated stage-2 optimal value by substituting matched outcomes
-    for units assigned to a non-optimal observed treatment.
+    pseudo-outcomes via
+    [`matchpotential_DTR`](https://ericanto0.github.io/DRMLSurv/reference/matchpotential_DTR.md),
+    tune/fit a random-forest policy via
+    [`rfdtr`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md),
+    and compute an estimated stage-2 optimal value by substituting
+    matched outcomes for units assigned to a non-optimal observed
+    treatment.
 
 6.  Stage 1: construct a pseudo-outcome `Rtilde` (including the
     estimated stage-2 optimal value for stage-2 entrants), perform
-    matching via [`matchpotential_DTR`](matchpotential_DTR.md), and
-    tune/fit the stage-1 policy via [`rfdtr`](rfdtr.md).
+    matching via
+    [`matchpotential_DTR`](https://ericanto0.github.io/DRMLSurv/reference/matchpotential_DTR.md),
+    and tune/fit the stage-1 policy via
+    [`rfdtr`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md).
 
 7.  Apply learned policies to the held-out fold and compute fold-level
     summaries: value estimates (means and medians, capped at
@@ -336,9 +347,10 @@ on the stage-1 observed treatment `A1.var`. For each fold:
 ## See also
 
 `Get_data` `Get_data`,
-[`impute_censored_outcomes`](impute_censored_outcomes.md),
-[`get_doublescores`](get_doublescores.md),
-[`matchpotential_DTR`](matchpotential_DTR.md), [`rfdtr`](rfdtr.md).
+[`impute_censored_outcomes`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_outcomes.md),
+[`get_doublescores`](https://ericanto0.github.io/DRMLSurv/reference/get_doublescores.md),
+[`matchpotential_DTR`](https://ericanto0.github.io/DRMLSurv/reference/matchpotential_DTR.md),
+[`rfdtr`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md).
 
 ## Examples
 

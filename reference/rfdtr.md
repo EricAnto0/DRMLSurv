@@ -13,8 +13,9 @@ cross-validation using:
 - **OOB**: out-of-bag prediction error (model-reported), and
 
 - **Score**: a user-supplied policy-value-like performance measure
-  computed by [`my_score.Surv()`](my_score.Surv.md) using observed and
-  matched pseudo-outcomes.
+  computed by
+  [`my_score.Surv()`](https://ericanto0.github.io/DRMLSurv/reference/my_score.Surv.md)
+  using observed and matched pseudo-outcomes.
 
 The best tuning parameters are selected according to `metric`, after
 which a final model is fit on the full observed dataset `obs`. The
@@ -92,7 +93,7 @@ rfdtr(
 - Q.match:
 
   Numeric vector. Matched/pair pseudo-outcome aligned with `obs` used by
-  [`my_score.Surv()`](my_score.Surv.md).
+  [`my_score.Surv()`](https://ericanto0.github.io/DRMLSurv/reference/my_score.Surv.md).
 
 - score_agg:
 
@@ -129,8 +130,9 @@ A list with elements:
   aligned to `obs`.
 
 - `Q.obs` and `Q.match` are numeric vectors aligned to `obs` used by
-  [`my_score.Surv()`](my_score.Surv.md) to compute the policy score
-  (e.g., observed pseudo-outcome and matched/pair pseudo-outcome).
+  [`my_score.Surv()`](https://ericanto0.github.io/DRMLSurv/reference/my_score.Surv.md)
+  to compute the policy score (e.g., observed pseudo-outcome and
+  matched/pair pseudo-outcome).
 
 **Cross-validation logic.** When `usecv=TRUE`, the function uses 5-fold
 stratified folds created by `caret::createFolds(obs$A, k=5)`. For each

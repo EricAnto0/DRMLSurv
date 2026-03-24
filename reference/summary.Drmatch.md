@@ -110,20 +110,20 @@ summary(
 - ...:
 
   Additional arguments passed to
-  [`predict.Drmatch()`](predict.Drmatch.md).
+  [`predict.Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/predict.Drmatch.md).
 
 ## Value
 
 Either a one-row data frame or a named numeric vector containing the
 policy performance metrics returned by
-[`policy_summary_metrics()`](policy_summary_metrics.md).
+[`policy_summary_metrics()`](https://ericanto0.github.io/DRMLSurv/reference/policy_summary_metrics.md).
 
 ## Details
 
 Internally, predicted treatment assignments are passed to
-[`policy_summary_metrics()`](policy_summary_metrics.md) to compute
-stage-specific and joint-path classification metrics, with optional
-value-based summaries when outcome columns are supplied.
+[`policy_summary_metrics()`](https://ericanto0.github.io/DRMLSurv/reference/policy_summary_metrics.md)
+to compute stage-specific and joint-path classification metrics, with
+optional value-based summaries when outcome columns are supplied.
 
 When `stage = "stage1"`, stage-2 predictions are set to `NA` before
 summary metrics are computed. When `stage = "stage2"`, the observed
@@ -137,9 +137,9 @@ optionally, with value columns provided in the new dataset.
 
 ## See also
 
-[`policy_summary_metrics()`](policy_summary_metrics.md),
-[`print.summary.Drmatch()`](print.summary.Drmatch.md),
-[`predict.Drmatch()`](predict.Drmatch.md)
+[`policy_summary_metrics()`](https://ericanto0.github.io/DRMLSurv/reference/policy_summary_metrics.md),
+[`print.summary.Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/print.summary.Drmatch.md),
+[`predict.Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/predict.Drmatch.md)
 
 ## Examples
 
