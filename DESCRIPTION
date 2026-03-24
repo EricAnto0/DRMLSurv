@@ -40,4 +40,7 @@ Suggests:
     flexsurv,
     optmatch,
     cobalt,
-    doSNOW
+    doSNOW,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

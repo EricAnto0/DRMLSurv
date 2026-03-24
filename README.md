@@ -3,54 +3,46 @@
 
 # DRMLSurv
 
+<!-- <!-- badges: start -->
+
+–\>
+<!-- [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml) -->
+<!-- <!-- badges: end --> –\>
+
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)
+[![License:
+MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
+[![Lifecycle:
+experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
+<!-- [![pkgdown](https://img.shields.io/badge/pkgdown-site-blue)](https://EricAnto0.github.io/DRMLSurv/) -->
+<!-- [![codecov](https://codecov.io/gh/EricAnto0/DRMLSurv/branch/main/graph/badge.svg)](https://codecov.io/gh/EricAnto0/DRMLSurv) -->
 <!-- badges: end -->
 
-DRMLSurv is a two-stage survival analysis toolkit that imputes censored
-stage-specific times by donor matching, builds matched counterfactual
-outcomes for static and dynamic treatment regimes, and learns optimal
-dynamic treatment rules with machine learning, cross-fitting, and
-balance diagnostics.
+<img src="man/figures/logo.png" align="right" height="180" />
+
+DRMLSurv is an R package for two-stage survival analysis with censoring,
+matching-based imputation, counterfactual outcome construction, and
+machine-learning estimation of dynamic treatment rules.
+
+Main features include:
+
+- donor-based imputation of censored stage-1 and stage-2 survival times
+- matched counterfactual outcome construction under alternative
+  treatment paths
+- policy learning with random forests and cross-validation
+- policy summary metrics and balance diagnostics
 
 ## Installation
 
-You can install the development version of DRMLSurv like so:
-
 ``` r
-# FILL THIS IN! HOW CAN PEOPLE INSTALL YOUR DEV PACKAGE?
+# install.packages("remotes")
+remotes::install_github("EricAnto0/DRMLSurv")
 ```
 
-## Example
-
-This is a basic example which shows you how to solve a common problem:
+# load package
 
 ``` r
 library(DRMLSurv)
-## basic example code
 ```
-
-What is special about using `README.Rmd` instead of just `README.md`?
-You can include R chunks like so:
-
-``` r
-summary(cars)
-#>      speed           dist       
-#>  Min.   : 4.0   Min.   :  2.00  
-#>  1st Qu.:12.0   1st Qu.: 26.00  
-#>  Median :15.0   Median : 36.00  
-#>  Mean   :15.4   Mean   : 42.98  
-#>  3rd Qu.:19.0   3rd Qu.: 56.00  
-#>  Max.   :25.0   Max.   :120.00
-```
-
-You’ll still need to render `README.Rmd` regularly, to keep `README.md`
-up-to-date. `devtools::build_readme()` is handy for this.
-
-You can also embed plots, for example:
-
-<img src="man/figures/README-pressure-1.png" width="100%" />
-
-In that case, don’t forget to commit and push the resulting figure
-files, so they display on GitHub and CRAN.
