@@ -188,7 +188,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
           cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
           env = getNamespace("SuperLearner")
         )
-        out[["pgcens"]] <- as.numeric(SuperLearner:::predict.SuperLearner(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred)
+        out[["pgcens"]] <- as.numeric(predict(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred)
       }
     }
 
@@ -234,7 +234,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         maxit = maxit, penalty = penalty, show_progress = TRUE
       )
       grid1 <- seq(0, tmax, length.out = ngrid)
-      pred1 <- survivalSL:::predict.sltime(slres1, newdata = X_df, newtimes = grid1)
+      pred1 <- predict(slres1, newdata = X_df, newtimes = grid1)
       out[["pg1"]] <- pred_mean(pred1$predictions$sl, pred1$times)
     }
 
@@ -248,7 +248,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         maxit = maxit, penalty = penalty, show_progress = TRUE
       )
       grid0 <- seq(0, tmax, length.out = ngrid)
-      pred0 <- survivalSL:::predict.sltime(slres0, newdata = X_df, newtimes = grid0)
+      pred0 <- predict(slres0, newdata = X_df, newtimes = grid0)
       out[["pg0"]] <- pred_mean(pred0$predictions$sl, pred0$times)
     }
 

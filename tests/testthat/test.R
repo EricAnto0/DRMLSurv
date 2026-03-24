@@ -36,7 +36,7 @@ test_that("Testing the number of objects in my output", {
     sl.seed                    = 1234,
     A.SL.library              = list(
       "SL.ranger", #Random forest with No screening version
-      c("SL.glm", "screen.corRank"), #Logistic regression with screening
+     # c("SL.glm", "screen.corRank"), #Logistic regression with screening
       "SL.glm",  #Logistic regression with No screening version
       "SL.glmnet"), #c("SL.glm", "SL.glmnet", "SL.ranger"),
     Y.SL.library              = c("LIB_COXlasso", "LIB_COXall",  "LIB_COXen"

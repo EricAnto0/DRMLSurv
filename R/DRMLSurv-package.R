@@ -6,6 +6,4 @@
 #' @importFrom magrittr %>%
 #' @importFrom rlang .data
 #' @importFrom foreach %dopar%
-#' @importFrom stats predict update complete.cases density
-#' @importFrom utils tail
 "_PACKAGE"
