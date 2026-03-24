@@ -103,6 +103,6 @@ test_that("Testing the number of objects in my output", {
  pred <- predict.Drmatch(trainmod, newdata = test_data)
 
   #testthat::expect_false(is.null(pred))
-  testthat::expect_equal(nrow(pred), nrow(dat))
+  testthat::expect_equal(nrow(pred), nrow(test_data))
 })
 
