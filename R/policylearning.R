@@ -99,7 +99,7 @@
 rfdtr <- function(
     modeltype = "ranger", usecv = TRUE, sl.seed = 123,
     obs, W, gridpar, metric = "ccr", A.obs, Q.obs, Q.match,
-    score_agg = c("sum","mean")
+    score_agg = c("mean", "sum")
 ) {
   score_agg <- match.arg(score_agg)
   agg_fun <- if (score_agg == "sum") function(x) sum(x, na.rm = TRUE) else function(x) mean(x, na.rm = TRUE)

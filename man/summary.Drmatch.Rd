@@ -8,6 +8,7 @@
   object,
   newdata,
   stage = c("both", "stage1", "stage2"),
+  overall_type = c("macro", "weighted"),
   obs1_var = NULL,
   obs2_var = NULL,
   eta2_var = NULL,
@@ -31,6 +32,8 @@ assignments and performance summaries.}
 
 \item{stage}{Character string indicating which decision stage to summarize.
 One of \code{"both"}, \code{"stage1"}, or \code{"stage2"}. Default is \code{"both"}.}
+
+\item{overall_type}{Character string indicating the type of overall summary metrics to compute for the joint path. One of \code{"macro"} or \code{"weighted"}. Default is \code{"macro"}.}
 
 \item{obs1_var}{Optional character string giving the observed stage-1
 treatment column in \code{newdata}. If \code{NULL}, the value is taken from

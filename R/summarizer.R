@@ -197,7 +197,7 @@ predict.Drmatch <- function(object, newdata, stage = c("both", "stage1", "stage2
 #'   `NULL`.
 #' @param Tt_total_var Optional character string giving the column name for the
 #'   total outcome/value under treatment option `1`. Default is `NULL`.
-#'
+#' @param stage Character string indicating which stage(s) to summarize. Must be one of `"both"`, `"stage1"`, or `"stage2"`. Default is `"both"`.
 #' @details
 #' The function assumes binary treatment coding with values `-1` and `1`.
 #' Internally, estimated and observed treatments are converted to factors with
@@ -292,13 +292,22 @@ policy_summary_metrics <- function(
     Tc2_var       = NULL,
     Tt2_var       = NULL,
     Tc_total_var  = NULL,
-    Tt_total_var  = NULL
+    Tt_total_var  = NULL,
+    stage         = c("both", "stage1", "stage2")
 ) {
-  if (!requireNamespace("caret", quietly = TRUE)) {
-    stop("Package 'caret' is required.")
+  stage <- match.arg(stage)
+
+  has_cols <- function(dat, vars) {
+    if (length(vars) == 0L) return(FALSE)
+    vals <- unlist(vars, use.names = FALSE)
+    if (length(vals) != length(vars)) return(FALSE)
+    if (any(is.na(vals)) || any(!nzchar(vals))) return(FALSE)
+    all(vals %in% names(dat))
   }
-  if (!requireNamespace("mltools", quietly = TRUE)) {
-    stop("Package 'mltools' is required.")
+
+  safe_div <- function(num, den) {
+    if (!is.finite(den) || den <= 0) return(NA_real_)
+    num / den
   }
 
   my_score.Surv <- function(pred, Q, pQ) {
@@ -306,218 +315,313 @@ policy_summary_metrics <- function(
     mean(ifelse(pred == 1, pQ, Q), na.rm = TRUE)
   }
 
-  multiclass_mcc <- function(actual, pred) {
-    actual <- factor(actual)
-    pred   <- factor(pred, levels = levels(actual))
+  binary_metrics <- function(actual, pred, negative = -1, positive = 1) {
+    actual <- suppressWarnings(as.numeric(as.character(actual)))
+    pred   <- suppressWarnings(as.numeric(as.character(pred)))
+
+    keep <- complete.cases(actual, pred) &
+      actual %in% c(negative, positive) &
+      pred   %in% c(negative, positive)
+
+    if (!any(keep)) {
+      return(list(
+        acc  = NA_real_,
+        mcc  = NA_real_,
+        sens = NA_real_,
+        spec = NA_real_,
+        ppv  = NA_real_,
+        npv  = NA_real_,
+        f1   = NA_real_
+      ))
+    }
+
+    actual <- actual[keep]
+    pred   <- pred[keep]
+
+    tp <- sum(actual == positive & pred == positive)
+    tn <- sum(actual == negative & pred == negative)
+    fp <- sum(actual == negative & pred == positive)
+    fn <- sum(actual == positive & pred == negative)
+
+    acc  <- safe_div(tp + tn, tp + tn + fp + fn)
+    sens <- safe_div(tp, tp + fn)
+    spec <- safe_div(tn, tn + fp)
+    ppv  <- safe_div(tp, tp + fp)
+    npv  <- safe_div(tn, tn + fn)
+    f1   <- safe_div(2 * tp, 2 * tp + fp + fn)
+
+    den_mcc <- sqrt(
+      as.double(tp + fp) *
+        as.double(tp + fn) *
+        as.double(tn + fp) *
+        as.double(tn + fn)
+    )
+
+    mcc <- if (!is.finite(den_mcc) || den_mcc == 0) {
+      NA_real_
+    } else {
+      (tp * tn - fp * fn) / den_mcc
+    }
+
+    list(
+      acc  = acc,
+      mcc  = mcc,
+      sens = sens,
+      spec = spec,
+      ppv  = ppv,
+      npv  = npv,
+      f1   = f1
+    )
+  }
+
+  multiclass_mcc <- function(actual, pred, levs = NULL) {
+    actual <- as.character(actual)
+    pred   <- as.character(pred)
+
+    keep <- complete.cases(actual, pred)
+    if (!any(keep)) return(NA_real_)
+
+    actual <- actual[keep]
+    pred   <- pred[keep]
+
+    if (is.null(levs)) {
+      levs <- sort(unique(c(actual, pred)))
+    }
+
+    actual <- factor(actual, levels = levs)
+    pred   <- factor(pred,   levels = levs)
 
     C <- as.matrix(table(actual, pred))
+    C <- apply(C, c(1, 2), as.double)
+
     s <- sum(C)
-    c <- sum(diag(C))
-    t_k <- rowSums(C)
-    p_k <- colSums(C)
+    if (s == 0) return(NA_real_)
 
-    numerator <- c * s - sum(t_k * p_k)
-    denominator <- sqrt((s^2 - sum(p_k^2)) * (s^2 - sum(t_k^2)))
+    c0  <- sum(diag(C))
+    tk  <- rowSums(C)
+    pk  <- colSums(C)
+    den <- sqrt((s^2 - sum(pk^2)) * (s^2 - sum(tk^2)))
 
-    if (denominator == 0) return(NA_real_)
-    numerator / denominator
+    if (!is.finite(den) || den == 0) return(NA_real_)
+    (c0 * s - sum(tk * pk)) / den
   }
 
-  safe_byclass_extract <- function(cm, stat) {
-    out <- cm$byClass[stat]
-    if (length(out) == 0 || all(is.na(out))) return(NA_real_)
-    unname(out[[1]])
+  multiclass_one_vs_rest <- function(actual, pred, levs) {
+    actual <- as.character(actual)
+    pred   <- as.character(pred)
+
+    keep <- complete.cases(actual, pred)
+    if (!any(keep)) {
+      return(list(
+        macro = list(sens = NA_real_, spec = NA_real_, ppv = NA_real_, npv = NA_real_, f1 = NA_real_),
+        weighted = list(sens = NA_real_, spec = NA_real_, ppv = NA_real_, npv = NA_real_, f1 = NA_real_)
+      ))
+    }
+
+    actual <- factor(actual[keep], levels = levs)
+    pred   <- factor(pred[keep],   levels = levs)
+
+    C <- as.matrix(table(actual, pred))
+    total_n <- sum(C)
+
+    if (total_n == 0) {
+      return(list(
+        macro = list(sens = NA_real_, spec = NA_real_, ppv = NA_real_, npv = NA_real_, f1 = NA_real_),
+        weighted = list(sens = NA_real_, spec = NA_real_, ppv = NA_real_, npv = NA_real_, f1 = NA_real_)
+      ))
+    }
+
+    by_class <- lapply(seq_along(levs), function(j) {
+      tp <- C[j, j]
+      fn <- sum(C[j, ]) - tp
+      fp <- sum(C[, j]) - tp
+      tn <- total_n - tp - fn - fp
+
+      list(
+        sens = safe_div(tp, tp + fn),
+        spec = safe_div(tn, tn + fp),
+        ppv  = safe_div(tp, tp + fp),
+        npv  = safe_div(tn, tn + fn),
+        f1   = safe_div(2 * tp, 2 * tp + fp + fn)
+      )
+    })
+
+    wts <- rowSums(C) / total_n
+
+    macro <- list(
+      sens = mean(vapply(by_class, `[[`, numeric(1), "sens"), na.rm = TRUE),
+      spec = mean(vapply(by_class, `[[`, numeric(1), "spec"), na.rm = TRUE),
+      ppv  = mean(vapply(by_class, `[[`, numeric(1), "ppv"),  na.rm = TRUE),
+      npv  = mean(vapply(by_class, `[[`, numeric(1), "npv"),  na.rm = TRUE),
+      f1   = mean(vapply(by_class, `[[`, numeric(1), "f1"),   na.rm = TRUE)
+    )
+
+    weighted <- list(
+      sens = sum(vapply(by_class, `[[`, numeric(1), "sens") * wts, na.rm = TRUE),
+      spec = sum(vapply(by_class, `[[`, numeric(1), "spec") * wts, na.rm = TRUE),
+      ppv  = sum(vapply(by_class, `[[`, numeric(1), "ppv")  * wts, na.rm = TRUE),
+      npv  = sum(vapply(by_class, `[[`, numeric(1), "npv")  * wts, na.rm = TRUE),
+      f1   = sum(vapply(by_class, `[[`, numeric(1), "f1")   * wts, na.rm = TRUE)
+    )
+
+    list(macro = macro, weighted = weighted)
   }
 
-  has_cols <- function(dat, vars) {
-    !any(vapply(vars, is.null, logical(1))) && all(vars %in% names(dat))
+  if (!is.data.frame(tmpData)) {
+    stop("`tmpData` must be a data.frame.", call. = FALSE)
   }
-
-  if (!obs1_var %in% names(tmpData)) stop("`obs1_var` not found in `tmpData`.")
-  if (!obs2_var %in% names(tmpData)) stop("`obs2_var` not found in `tmpData`.")
-  if (!eta2_var %in% names(tmpData)) stop("`eta2_var` not found in `tmpData`.")
+  if (!obs1_var %in% names(tmpData)) {
+    stop("`obs1_var` not found in `tmpData`.", call. = FALSE)
+  }
+  if (!obs2_var %in% names(tmpData)) {
+    stop("`obs2_var` not found in `tmpData`.", call. = FALSE)
+  }
+  if (!eta2_var %in% names(tmpData)) {
+    stop("`eta2_var` not found in `tmpData`.", call. = FALSE)
+  }
 
   obs1 <- tmpData[[obs1_var]]
   obs2 <- tmpData[[obs2_var]]
   eta2 <- tmpData[[eta2_var]]
 
-  estA1 <- as.numeric(as.character(estA1))
-  estA2 <- as.numeric(as.character(estA2))
+  estA1 <- suppressWarnings(as.numeric(as.character(estA1)))
+  estA2 <- suppressWarnings(as.numeric(as.character(estA2)))
 
   if (length(estA1) != nrow(tmpData)) {
-    stop("`estA1` must have length nrow(tmpData).")
+    stop("`estA1` must have length nrow(tmpData).", call. = FALSE)
   }
   if (length(estA2) != nrow(tmpData)) {
-    stop("`estA2` must have length nrow(tmpData).")
+    stop("`estA2` must have length nrow(tmpData).", call. = FALSE)
   }
 
-  idx2_use      <- which(eta2 == 1)
-  idx_joint_use <- which(eta2 == 1)
+  out <- list(
+    Acc1L = NA_real_,
+    MCC1L = NA_real_,
+    Sensitivity1L = NA_real_,
+    Specificity1L = NA_real_,
+    PPV1L = NA_real_,
+    NPV1L = NA_real_,
+    F11L = NA_real_,
+    RMST1L = NA_real_,
 
-  ## Stage 1
-  pred1 <- factor(estA1, levels = c(-1, 1))
-  obs1f <- factor(obs1,  levels = c(-1, 1))
-  keep1 <- complete.cases(pred1, obs1f)
+    Acc2L = NA_real_,
+    MCC2L = NA_real_,
+    Sensitivity2L = NA_real_,
+    Specificity2L = NA_real_,
+    PPV2L = NA_real_,
+    NPV2L = NA_real_,
+    F12L = NA_real_,
+    RMST2L = NA_real_,
 
-  cm1 <- caret::confusionMatrix(
-    data      = pred1[keep1],
-    reference = obs1f[keep1],
-    positive  = "1"
+    AccTotal = NA_real_,
+    MCCTotal = NA_real_,
+    SensitivityTotalMacro = NA_real_,
+    SpecificityTotalMacro = NA_real_,
+    PPVTotalMacro = NA_real_,
+    NPVTotalMacro = NA_real_,
+    F1TotalMacro = NA_real_,
+    SensitivityTotalWtd = NA_real_,
+    SpecificityTotalWtd = NA_real_,
+    PPVTotalWtd = NA_real_,
+    NPVTotalWtd = NA_real_,
+    F1TotalWtd = NA_real_,
+    RMSTTotal = NA_real_
   )
 
-  rmst1 <- NA_real_
-  if (has_cols(tmpData, c(Tc1_var, Tt1_var))) {
-    rmst1 <- my_score.Surv(
-      pred = pred1,
-      Q    = tmpData[[Tc1_var]],
-      pQ   = tmpData[[Tt1_var]]
-    )
+  if (stage %in% c("both", "stage1")) {
+    m1 <- binary_metrics(actual = obs1, pred = estA1)
+
+    out$Acc1L         <- m1$acc
+    out$MCC1L         <- m1$mcc
+    out$Sensitivity1L <- m1$sens
+    out$Specificity1L <- m1$spec
+    out$PPV1L         <- m1$ppv
+    out$NPV1L         <- m1$npv
+    out$F11L          <- m1$f1
+
+    if (has_cols(tmpData, list(Tc1_var, Tt1_var))) {
+      out$RMST1L <- my_score.Surv(
+        pred = estA1,
+        Q    = tmpData[[Tc1_var]],
+        pQ   = tmpData[[Tt1_var]]
+      )
+    }
   }
 
-  ## Stage 2
-  acc2  <- NA_real_
-  mcc2  <- NA_real_
-  sens2 <- NA_real_
-  spec2 <- NA_real_
-  ppv2  <- NA_real_
-  npv2  <- NA_real_
-  f12   <- NA_real_
-  rmst2 <- NA_real_
+  if (stage %in% c("both", "stage2")) {
+    idx2 <- which(eta2 == 1)
 
-  if (length(idx2_use) > 0) {
-    pred2 <- factor(estA2[idx2_use], levels = c(-1, 1))
-    obs2f <- factor(obs2[idx2_use],  levels = c(-1, 1))
-    keep2 <- complete.cases(pred2, obs2f)
+    if (length(idx2) > 0) {
+      m2 <- binary_metrics(actual = obs2[idx2], pred = estA2[idx2])
 
-    if (sum(keep2) > 0) {
-      cm2 <- caret::confusionMatrix(
-        data      = pred2[keep2],
-        reference = obs2f[keep2],
-        positive  = "1"
-      )
+      out$Acc2L         <- m2$acc
+      out$MCC2L         <- m2$mcc
+      out$Sensitivity2L <- m2$sens
+      out$Specificity2L <- m2$spec
+      out$PPV2L         <- m2$ppv
+      out$NPV2L         <- m2$npv
+      out$F12L          <- m2$f1
 
-      acc2  <- mean(pred2[keep2] == obs2f[keep2], na.rm = TRUE)
-      mcc2  <- mltools::mcc(preds = pred2[keep2], actuals = obs2f[keep2])
-      sens2 <- safe_byclass_extract(cm2, "Sensitivity")
-      spec2 <- safe_byclass_extract(cm2, "Specificity")
-      ppv2  <- safe_byclass_extract(cm2, "Pos Pred Value")
-      npv2  <- safe_byclass_extract(cm2, "Neg Pred Value")
-      f12   <- safe_byclass_extract(cm2, "F1")
-
-      if (has_cols(tmpData, c(Tc2_var, Tt2_var))) {
-        rmst2 <- my_score.Surv(
-          pred = pred2,
-          Q    = tmpData[[Tc2_var]][idx2_use],
-          pQ   = tmpData[[Tt2_var]][idx2_use]
+      if (has_cols(tmpData, list(Tc2_var, Tt2_var))) {
+        out$RMST2L <- my_score.Surv(
+          pred = estA2[idx2],
+          Q    = tmpData[[Tc2_var]][idx2],
+          pQ   = tmpData[[Tt2_var]][idx2]
         )
       }
     }
   }
 
-  ## Joint
-  acc_total <- NA_real_
-  mcc_total <- NA_real_
-  sens_total_macro <- NA_real_
-  spec_total_macro <- NA_real_
-  ppv_total_macro  <- NA_real_
-  npv_total_macro  <- NA_real_
-  f1_total_macro   <- NA_real_
-  sens_total_weighted <- NA_real_
-  spec_total_weighted <- NA_real_
-  ppv_total_weighted  <- NA_real_
-  npv_total_weighted  <- NA_real_
-  f1_total_weighted   <- NA_real_
+  if (stage == "both") {
+    idx_joint <- which(eta2 == 1)
+    joint_levels <- c("-1_-1", "-1_1", "1_-1", "1_1")
 
-  if (length(idx_joint_use) > 0) {
-    pred_joint <- factor(
-      paste(estA1[idx_joint_use], estA2[idx_joint_use], sep = "_"),
-      levels = c("-1_-1", "-1_1", "1_-1", "1_1")
-    )
-    obs_joint <- factor(
-      paste(obs1[idx_joint_use], obs2[idx_joint_use], sep = "_"),
-      levels = c("-1_-1", "-1_1", "1_-1", "1_1")
-    )
+    if (length(idx_joint) > 0) {
+      pred_joint <- paste(estA1[idx_joint], estA2[idx_joint], sep = "_")
+      obs_joint  <- paste(obs1[idx_joint],  obs2[idx_joint],  sep = "_")
 
-    keep_joint <- complete.cases(pred_joint, obs_joint)
+      keep_joint <- complete.cases(pred_joint, obs_joint) &
+        pred_joint %in% joint_levels &
+        obs_joint  %in% joint_levels
 
-    if (sum(keep_joint) > 0) {
-      pred_joint <- pred_joint[keep_joint]
-      obs_joint  <- obs_joint[keep_joint]
+      if (any(keep_joint)) {
+        pred_joint <- pred_joint[keep_joint]
+        obs_joint  <- obs_joint[keep_joint]
 
-      cmtot <- caret::confusionMatrix(pred_joint, obs_joint)
-      acc_total <- mean(pred_joint == obs_joint, na.rm = TRUE)
-      mcc_total <- multiclass_mcc(actual = obs_joint, pred = pred_joint)
+        out$AccTotal <- mean(pred_joint == obs_joint, na.rm = TRUE)
+        out$MCCTotal <- multiclass_mcc(obs_joint, pred_joint, levs = joint_levels)
 
-      byclass_total <- cmtot$byClass
-      if (is.null(dim(byclass_total))) {
-        byclass_total <- matrix(byclass_total, nrow = 1)
-        colnames(byclass_total) <- names(cmtot$byClass)
-        rownames(byclass_total) <- paste0("Class: ", levels(obs_joint)[1])
+        joint_stats <- multiclass_one_vs_rest(
+          actual = obs_joint,
+          pred   = pred_joint,
+          levs   = joint_levels
+        )
+
+        out$SensitivityTotalMacro <- joint_stats$macro$sens
+        out$SpecificityTotalMacro <- joint_stats$macro$spec
+        out$PPVTotalMacro         <- joint_stats$macro$ppv
+        out$NPVTotalMacro         <- joint_stats$macro$npv
+        out$F1TotalMacro          <- joint_stats$macro$f1
+
+        out$SensitivityTotalWtd   <- joint_stats$weighted$sens
+        out$SpecificityTotalWtd   <- joint_stats$weighted$spec
+        out$PPVTotalWtd           <- joint_stats$weighted$ppv
+        out$NPVTotalWtd           <- joint_stats$weighted$npv
+        out$F1TotalWtd            <- joint_stats$weighted$f1
       }
+    }
 
-      sens_total_macro <- mean(byclass_total[, "Sensitivity"],    na.rm = TRUE)
-      spec_total_macro <- mean(byclass_total[, "Specificity"],    na.rm = TRUE)
-      ppv_total_macro  <- mean(byclass_total[, "Pos Pred Value"], na.rm = TRUE)
-      npv_total_macro  <- mean(byclass_total[, "Neg Pred Value"], na.rm = TRUE)
-      f1_total_macro   <- mean(byclass_total[, "F1"],             na.rm = TRUE)
-
-      joint_wts <- prop.table(table(obs_joint))
-      joint_names <- sub("^Class: ", "", rownames(byclass_total))
-      joint_wts <- as.numeric(joint_wts[joint_names])
-
-      sens_total_weighted <- sum(byclass_total[, "Sensitivity"]    * joint_wts, na.rm = TRUE)
-      spec_total_weighted <- sum(byclass_total[, "Specificity"]    * joint_wts, na.rm = TRUE)
-      ppv_total_weighted  <- sum(byclass_total[, "Pos Pred Value"] * joint_wts, na.rm = TRUE)
-      npv_total_weighted  <- sum(byclass_total[, "Neg Pred Value"] * joint_wts, na.rm = TRUE)
-      f1_total_weighted   <- sum(byclass_total[, "F1"]             * joint_wts, na.rm = TRUE)
+    if (has_cols(tmpData, list(Tc_total_var, Tt_total_var))) {
+      out$RMSTTotal <- my_score.Surv(
+        pred = estA1,
+        Q    = tmpData[[Tc_total_var]],
+        pQ   = tmpData[[Tt_total_var]]
+      )
     }
   }
 
-  ## Optional total RMST
-  rmst_total <- NA_real_
-  if (has_cols(tmpData, c(Tc_total_var, Tt_total_var))) {
-    rmst_total <- my_score.Surv(
-      pred = estA1,
-      Q    = tmpData[[Tc_total_var]],
-      pQ   = tmpData[[Tt_total_var]]
-    )
-  }
-
-  c(
-    Acc1L         = mean(pred1[keep1] == obs1f[keep1], na.rm = TRUE),
-    MCC1L         = mltools::mcc(preds = pred1[keep1], actuals = obs1f[keep1]),
-    Sensitivity1L = safe_byclass_extract(cm1, "Sensitivity"),
-    Specificity1L = safe_byclass_extract(cm1, "Specificity"),
-    PPV1L         = safe_byclass_extract(cm1, "Pos Pred Value"),
-    NPV1L         = safe_byclass_extract(cm1, "Neg Pred Value"),
-    F11L          = safe_byclass_extract(cm1, "F1"),
-    RMST1L        = rmst1,
-
-    Acc2L         = acc2,
-    MCC2L         = mcc2,
-    Sensitivity2L = sens2,
-    Specificity2L = spec2,
-    PPV2L         = ppv2,
-    NPV2L         = npv2,
-    F12L          = f12,
-    RMST2L        = rmst2,
-
-    AccTotal              = acc_total,
-    MCCTotal              = mcc_total,
-    SensitivityTotalMacro = sens_total_macro,
-    SpecificityTotalMacro = spec_total_macro,
-    PPVTotalMacro         = ppv_total_macro,
-    NPVTotalMacro         = npv_total_macro,
-    F1TotalMacro          = f1_total_macro,
-    SensitivityTotalWtd   = sens_total_weighted,
-    SpecificityTotalWtd   = spec_total_weighted,
-    PPVTotalWtd           = ppv_total_weighted,
-    NPVTotalWtd           = npv_total_weighted,
-    F1TotalWtd            = f1_total_weighted,
-    RMSTTotal             = rmst_total
-  )
+  out
 }
-
 
 #' Summarize a fitted `Drmatch` object on new data
 #'
@@ -565,6 +669,7 @@ policy_summary_metrics <- function(
 #' @param as.data.frame Logical; if `TRUE`, the output is returned as a
 #'   one-row data frame. Otherwise, a named numeric vector is returned.
 #'   Default is `TRUE`.
+#' @param overall_type Character string indicating the type of overall summary metrics to compute for the joint path. One of `"macro"` or `"weighted"`. Default is `"macro"`.
 #' @param ... Additional arguments passed to [predict.Drmatch()].
 #'
 #' @details
@@ -597,6 +702,7 @@ summary.Drmatch <- function(
     object,
     newdata,
     stage = c("both", "stage1", "stage2"),
+    overall_type = c("macro", "weighted"),
     obs1_var = NULL,
     obs2_var = NULL,
     eta2_var = NULL,
@@ -612,36 +718,52 @@ summary.Drmatch <- function(
     ...
 ) {
   stage <- match.arg(stage)
+  overall_type <- match.arg(overall_type)
 
   if (missing(newdata) || is.null(newdata)) {
-    stop("`newdata` must be supplied to `summary.Drmatch()`.")
+    stop("`newdata` must be supplied to `summary.Drmatch()`.", call. = FALSE)
+  }
+  if (!is.data.frame(newdata)) {
+    stop("`newdata` must be a data.frame.", call. = FALSE)
+  }
+
+  if (is.null(obs1_var)) obs1_var <- object$A1.var
+  if (is.null(obs2_var)) obs2_var <- object$A2.var
+  if (is.null(eta2_var)) eta2_var <- object$eta2.var
+
+  if (is.null(obs1_var) || length(obs1_var) != 1L || !nzchar(obs1_var) || !obs1_var %in% names(newdata)) {
+    stop("Could not resolve `obs1_var` in `newdata`.", call. = FALSE)
+  }
+  if (is.null(obs2_var) || length(obs2_var) != 1L || !nzchar(obs2_var) || !obs2_var %in% names(newdata)) {
+    stop("Could not resolve `obs2_var` in `newdata`.", call. = FALSE)
+  }
+  if (is.null(eta2_var) || length(eta2_var) != 1L || !nzchar(eta2_var) || !eta2_var %in% names(newdata)) {
+    stop("Could not resolve `eta2_var` in `newdata`.", call. = FALSE)
   }
 
   pred <- predict(object, newdata = newdata, stage = stage, ...)
 
-  if (!pred1_var %in% names(pred)) {
-    stop("`pred1_var` not found in predictions.")
-  }
-
-  if (is.null(obs1_var)) {
-    obs1_var <- object$A1.var
-  }
-  if (is.null(obs2_var)) {
-    obs2_var <- object$A2.var
-  }
-  if (is.null(eta2_var)) {
-    eta2_var <- object$eta2.var
+  if (stage == "both") {
+    if (!pred1_var %in% names(pred)) {
+      stop("`pred1_var` not found in predictions for stage = 'both'.", call. = FALSE)
+    }
+    if (!pred2_var %in% names(pred)) {
+      stop("`pred2_var` not found in predictions for stage = 'both'.", call. = FALSE)
+    }
   }
 
   if (stage == "stage1") {
-    pred[[pred2_var]] <- NA_real_
+    if (!pred1_var %in% names(pred)) {
+      stop("`pred1_var` not found in predictions for stage = 'stage1'.", call. = FALSE)
+    }
+    pred[[pred2_var]] <- rep(NA_real_, nrow(newdata))
   }
 
   if (stage == "stage2") {
     if (!pred2_var %in% names(pred)) {
-      stop("`pred2_var` not found in predictions.")
+      stop("`pred2_var` not found in predictions for stage = 'stage2'.", call. = FALSE)
     }
-    pred[[pred1_var]] <- newdata[[obs1_var]]
+    pred[[pred1_var]] <- rep(NA_real_, nrow(newdata))
   }
 
   out <- policy_summary_metrics(
@@ -656,17 +778,102 @@ summary.Drmatch <- function(
     Tc2_var       = Tc2_var,
     Tt2_var       = Tt2_var,
     Tc_total_var  = Tc_total_var,
-    Tt_total_var  = Tt_total_var
+    Tt_total_var  = Tt_total_var,
+    stage         = stage
   )
 
-  if (isTRUE(as.data.frame)) {
-    out <- as.data.frame(as.list(out), check.names = FALSE)
+  metric_rows <- c(
+    "Accuracy", "MCC", "Sensitivity", "Specificity",
+    "PPV", "NPV", "F1", "RMST"
+  )
+
+  if (stage == "stage1") {
+    res <- data.frame(
+      `Stage 1` = c(
+        out$Acc1L,
+        out$MCC1L,
+        out$Sensitivity1L,
+        out$Specificity1L,
+        out$PPV1L,
+        out$NPV1L,
+        out$F11L,
+        out$RMST1L
+      ),
+      row.names = metric_rows,
+      check.names = FALSE
+    )
+  } else if (stage == "stage2") {
+    res <- data.frame(
+      `Stage 2` = c(
+        out$Acc2L,
+        out$MCC2L,
+        out$Sensitivity2L,
+        out$Specificity2L,
+        out$PPV2L,
+        out$NPV2L,
+        out$F12L,
+        out$RMST2L
+      ),
+      row.names = metric_rows,
+      check.names = FALSE
+    )
+  } else {
+    overall_vals <- if (overall_type == "weighted") {
+      c(
+        out$AccTotal,
+        out$MCCTotal,
+        out$SensitivityTotalWtd,
+        out$SpecificityTotalWtd,
+        out$PPVTotalWtd,
+        out$NPVTotalWtd,
+        out$F1TotalWtd,
+        out$RMSTTotal
+      )
+    } else {
+      c(
+        out$AccTotal,
+        out$MCCTotal,
+        out$SensitivityTotalMacro,
+        out$SpecificityTotalMacro,
+        out$PPVTotalMacro,
+        out$NPVTotalMacro,
+        out$F1TotalMacro,
+        out$RMSTTotal
+      )
+    }
+
+    res <- data.frame(
+      `Stage 1` = c(
+        out$Acc1L,
+        out$MCC1L,
+        out$Sensitivity1L,
+        out$Specificity1L,
+        out$PPV1L,
+        out$NPV1L,
+        out$F11L,
+        out$RMST1L
+      ),
+      `Stage 2` = c(
+        out$Acc2L,
+        out$MCC2L,
+        out$Sensitivity2L,
+        out$Specificity2L,
+        out$PPV2L,
+        out$NPV2L,
+        out$F12L,
+        out$RMST2L
+      ),
+      Overall = overall_vals,
+      row.names = metric_rows,
+      check.names = FALSE
+    )
+  }
+  if (!is.null(res) && !is.null(dim(res)) && length(dim(res)) == 2L && ncol(res) > 0L) {
+    res <- res[!is.na(res[, 1]), , drop = FALSE]
   }
 
-  out
+  return(res)
 }
-
-
 #' Print a summary.Drmatch object
 #'
 #' @param x An object returned by \code{summary.Drmatch()}.

@@ -1,6 +1,6 @@
 Package: DRMLSurv
 Title: Doubly Robust ML and Matching for Two-Stage Survival Outcomes
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R:
     person("Eric", "Anto", , "eric.anto@utah.edu", role = c("aut", "cre"))
 Description: Implements a two-stage survival analysis pipeline that combines
@@ -30,7 +30,6 @@ Imports:
     foreach,
     ranger,
     randomForestSRC,
-    mltools,
     survival,
     survivalSL,
     SuperLearner,
@@ -42,6 +41,7 @@ Suggests:
     cobalt,
     doSNOW,
     knitr,
+    mltools,
     rmarkdown,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr

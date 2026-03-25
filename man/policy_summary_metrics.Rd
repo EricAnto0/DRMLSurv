@@ -16,7 +16,8 @@ policy_summary_metrics(
   Tc2_var = NULL,
   Tt2_var = NULL,
   Tc_total_var = NULL,
-  Tt_total_var = NULL
+  Tt_total_var = NULL,
+  stage = c("both", "stage1", "stage2")
 )
 }
 \arguments{
@@ -58,6 +59,8 @@ total outcome/value under control or treatment option \code{-1}. Default is
 
 \item{Tt_total_var}{Optional character string giving the column name for the
 total outcome/value under treatment option \code{1}. Default is \code{NULL}.}
+
+\item{stage}{Character string indicating which stage(s) to summarize. Must be one of \code{"both"}, \code{"stage1"}, or \code{"stage2"}. Default is \code{"both"}.}
 }
 \value{
 A named numeric vector containing some or all of the following

@@ -7,10 +7,12 @@ output: github_document
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
+  comment = "",
   fig.path = "man/figures/README-",
   out.width = "100%"
 )
+
+devtools::load_all(".")
 ```
 
 # DRMLSurv
@@ -36,12 +38,85 @@ Main features include:
 
 ## Installation
 
-```r
+```{r eval=FALSE}
 # install.packages("remotes")
 remotes::install_github("EricAnto0/DRMLSurv")
 ```
 
-# load package
-```r
+## Load package
+
+```{r}
 library(DRMLSurv)
+```
+
+## Example workflow
+
+```{r message=FALSE, warning=FALSE}
+data("DATASET", package = "DRMLSurv")
+dat <- DATASET
+
+set.seed(123)
+folds <- caret::createFolds(dat$txgroup1L.sd, k = 3)
+
+test_idx  <- folds[[1]]
+train_idx <- setdiff(seq_len(nrow(dat)), test_idx)
+
+train_data <- dat[train_idx, , drop = FALSE]
+test_data  <- dat[test_idx, , drop = FALSE]
+
+ trainmod = Drmatch(
+    data                       = train_data,
+    id.var                     = 'patientid',
+    eta2.var                   = 'eta2',
+    Y1.var                     = 'OS_time.1L',
+    Y2.var                     = 'OS_time.2L',
+    delta.var                  = 'deathInd.raw',
+    OY.var                     = 'OS_time',
+    A1.var                     = 'txgroup1L.sd',
+    A2.var                     = 'txgroup2L0.sd',
+    names.var1                 = c("ageAt1L.sd","gender.sd","Albumin1st.sd","Lymphocyte1st.sd",
+                                   "ECOG1st0.sd","ECOG1st1.sd", 'firstLineStartTime.sd'),
+    names.var2                 =  c("ageAt1L.sd","OS_time.1L","Albumin2nd.sd",
+                                    "gender.sd","Lymphocyte2nd.sd","ECOG2nd0.sd",
+                                    "ECOG2nd1.sd", "txgroup1L.sd", 'firstLineStartTime.sd'),
+    cores                      = 4,
+    sl.seed                    = 1234,
+    A.SL.library              = list(
+      "SL.ranger", 
+      "SL.glm", 
+      "SL.glmnet"), 
+    Y.SL.library              = c("LIB_COXlasso", "LIB_COXall",  "LIB_COXen"
+    ),
+    A.method                   = "method.NNloglik",
+    Y.method                   = "ibll",
+    plotps                     = FALSE,
+    ngrid                      = 5000,
+    param.tune                 =  list(
+      LIB_COXlasso = list(lambda=seq(0.001, 0.25, length.out = 10)),
+      LIB_COXall = NULL,
+      LIB_COXen = list(alpha=seq(.1, .9, length.out = 10),
+                       lambda=seq(0.001, 0.1, length.out = 10)) #NULL,
+      # LIB_RSF = list(
+      #   mtry = unique(round(c(sqrt(length(names.var2)), seq(1, floor(length(names.var2)-1), length.out = 10)))),#round(nX/3), # Number of variables to consider at each split
+      #   nodesize = 5,
+      #   ntree = c(1000)
+      # )
+    ),
+    maxit                      = 10000,
+    runseed                    = 2025,
+    useds                      = TRUE,
+    modeltype                  = "ranger",
+    usecv                      = TRUE,
+    doublepg                   = TRUE,
+    model.pg                   = "cox",
+    superLearn                 = TRUE,
+    distance                   = 'mahalanobis',
+    method                     = 'nearest',
+    K                          = 3,
+    replacement                = TRUE,
+    cap_months                 = 24
+  )
+#pred = predict(trainmod, newdata = test_data)
+res <- summary(trainmod, newdata = test_data)
+res
 ```
