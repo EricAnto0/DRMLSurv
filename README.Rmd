@@ -25,7 +25,7 @@ devtools::load_all(".")
 [![codecov](https://codecov.io/gh/EricAnto0/DRMLSurv/branch/main/graph/badge.svg)](https://codecov.io/gh/EricAnto0/DRMLSurv)
 <!-- badges: end -->
 
-<img src="man/figures/logo.png" align="right" height="180" />
+<img src="man/figures/DRMLSurvLogo.png" align="right" height="180" width="220" />
 
 DRMLSurv is an R package for two-stage survival analysis with censoring, matching-based imputation, counterfactual outcome construction, and machine-learning estimation of dynamic treatment rules.
 
