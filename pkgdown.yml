@@ -3,7 +3,7 @@ pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
   DRMLSurv_workflow: DRMLSurv_workflow.html
-last_built: 2026-03-25T04:18Z
+last_built: 2026-03-25T21:22Z
 urls:
   reference: https://ericanto0.github.io/DRMLSurv/reference
   article: https://ericanto0.github.io/DRMLSurv/articles
