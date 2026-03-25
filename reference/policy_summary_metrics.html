@@ -15,7 +15,7 @@ treatment-path metrics."><meta property="og:image" content="https://ericanto0.gi
 
     <a class="navbar-brand me-2" href="../index.html">DRMLSurv</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -26,8 +26,9 @@ treatment-path metrics."><meta property="og:image" content="https://ericanto0.gi
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/DRMLSurv_workflow.html">DRMLSurv_workflow</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/DRMLSurv_workflow.html">Dynamic Treatment Regime Learning with DRMLSurv</a></li>
   </ul></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
       </ul></div>
@@ -64,7 +65,8 @@ treatment-path metrics.</p>
 <span>  Tc2_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  Tt2_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  Tc_total_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  Tt_total_var <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  Tt_total_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  stage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"stage1"</span>, <span class="st">"stage2"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -133,6 +135,10 @@ total outcome/value under control or treatment option <code>-1</code>. Default i
 <dt id="arg-tt-total-var">Tt_total_var<a class="anchor" aria-label="anchor" href="#arg-tt-total-var"></a></dt>
 <dd><p>Optional character string giving the column name for the
 total outcome/value under treatment option <code>1</code>. Default is <code>NULL</code>.</p></dd>
+
+
+<dt id="arg-stage">stage<a class="anchor" aria-label="anchor" href="#arg-stage"></a></dt>
+<dd><p>Character string indicating which stage(s) to summarize. Must be one of <code>"both"</code>, <code>"stage1"</code>, or <code>"stage2"</code>. Default is <code>"both"</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

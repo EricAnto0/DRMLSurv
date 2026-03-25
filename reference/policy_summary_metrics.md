@@ -21,7 +21,8 @@ policy_summary_metrics(
   Tc2_var = NULL,
   Tt2_var = NULL,
   Tc_total_var = NULL,
-  Tt_total_var = NULL
+  Tt_total_var = NULL,
+  stage = c("both", "stage1", "stage2")
 )
 ```
 
@@ -89,6 +90,11 @@ policy_summary_metrics(
 
   Optional character string giving the column name for the total
   outcome/value under treatment option `1`. Default is `NULL`.
+
+- stage:
+
+  Character string indicating which stage(s) to summarize. Must be one
+  of `"both"`, `"stage1"`, or `"stage2"`. Default is `"both"`.
 
 ## Value
 

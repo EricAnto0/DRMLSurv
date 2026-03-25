@@ -13,6 +13,7 @@ summary(
   object,
   newdata,
   stage = c("both", "stage1", "stage2"),
+  overall_type = c("macro", "weighted"),
   obs1_var = NULL,
   obs2_var = NULL,
   eta2_var = NULL,
@@ -44,6 +45,12 @@ summary(
 
   Character string indicating which decision stage to summarize. One of
   `"both"`, `"stage1"`, or `"stage2"`. Default is `"both"`.
+
+- overall_type:
+
+  Character string indicating the type of overall summary metrics to
+  compute for the joint path. One of `"macro"` or `"weighted"`. Default
+  is `"macro"`.
 
 - obs1_var:
 

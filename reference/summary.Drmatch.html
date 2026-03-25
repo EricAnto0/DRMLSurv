@@ -13,7 +13,7 @@ decisions, stage-2 decisions, or both jointly."><meta property="og:image" conten
 
     <a class="navbar-brand me-2" href="../index.html">DRMLSurv</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -24,8 +24,9 @@ decisions, stage-2 decisions, or both jointly."><meta property="og:image" conten
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/DRMLSurv_workflow.html">DRMLSurv_workflow</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/DRMLSurv_workflow.html">Dynamic Treatment Regime Learning with DRMLSurv</a></li>
   </ul></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
       </ul></div>
@@ -54,6 +55,7 @@ decisions, stage-2 decisions, or both jointly.</p>
 <span>  <span class="va">object</span>,</span>
 <span>  <span class="va">newdata</span>,</span>
 <span>  stage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"stage1"</span>, <span class="st">"stage2"</span><span class="op">)</span>,</span>
+<span>  overall_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"macro"</span>, <span class="st">"weighted"</span><span class="op">)</span>,</span>
 <span>  obs1_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  obs2_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  eta2_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -86,6 +88,10 @@ assignments and performance summaries.</p></dd>
 <dt id="arg-stage">stage<a class="anchor" aria-label="anchor" href="#arg-stage"></a></dt>
 <dd><p>Character string indicating which decision stage to summarize.
 One of <code>"both"</code>, <code>"stage1"</code>, or <code>"stage2"</code>. Default is <code>"both"</code>.</p></dd>
+
+
+<dt id="arg-overall-type">overall_type<a class="anchor" aria-label="anchor" href="#arg-overall-type"></a></dt>
+<dd><p>Character string indicating the type of overall summary metrics to compute for the joint path. One of <code>"macro"</code> or <code>"weighted"</code>. Default is <code>"macro"</code>.</p></dd>
 
 
 <dt id="arg-obs-var">obs1_var<a class="anchor" aria-label="anchor" href="#arg-obs-var"></a></dt>

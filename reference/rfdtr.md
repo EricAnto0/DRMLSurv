@@ -36,7 +36,7 @@ rfdtr(
   A.obs,
   Q.obs,
   Q.match,
-  score_agg = c("sum", "mean")
+  score_agg = c("mean", "sum")
 )
 ```
 
