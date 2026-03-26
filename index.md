@@ -6,12 +6,15 @@ DRMLSurv is an R package for two-stage survival analysis with censoring,
 matching-based imputation, counterfactual outcome construction, and
 machine-learning estimation of dynamic treatment rules.
 
-Main features include: - estimate propensity and prognostic (and
-censoring) scores with SuperLearner - donor-based imputation of censored
-stage-1 and stage-2 survival times - matched counterfactual outcome
-construction under alternative treatment paths - policy learning with
-random forests and cross-validation - obtaining optimized regimes and
-policy summary metrics
+Main features include:
+
+- estimate propensity and prognostic (and censoring) scores with
+  SuperLearner
+- donor-based imputation of censored stage-1 and stage-2 survival times
+- matched counterfactual outcome construction under alternative
+  treatment paths
+- policy learning with random forests and cross-validation
+- obtaining optimized regimes and policy summary metrics
 
 ## Installation
 
@@ -72,12 +75,7 @@ test_data  <- dat[test_idx, , drop = FALSE]
       LIB_COXlasso = list(lambda=seq(0.001, 0.25, length.out = 10)),
       LIB_COXall = NULL,
       LIB_COXen = list(alpha=seq(.1, .9, length.out = 10),
-                       lambda=seq(0.001, 0.1, length.out = 10)) #NULL,
-      # LIB_RSF = list(
-      #   mtry = unique(round(c(sqrt(length(names.var2)), seq(1, floor(length(names.var2)-1), length.out = 10)))),#round(nX/3), # Number of variables to consider at each split
-      #   nodesize = 5,
-      #   ntree = c(1000)
-      # )
+                       lambda=seq(0.001, 0.1, length.out = 10))
     ),
     maxit                      = 10000,
     runseed                    = 2025,
@@ -93,18 +91,18 @@ test_data  <- dat[test_idx, , drop = FALSE]
     replacement                = TRUE,
     cap_months                 = 24
   )
-Scores: censoring scores (SL): 5.676 sec elapsed
-Stage 2 matching: 2.761 sec elapsed
-Scores: censoring scores (SL): 22.405 sec elapsed
-Stage 1 matching: 20.588 sec elapsed
+Scores: censoring scores (SL): 3.672 sec elapsed
+Stage 2 matching: 1.765 sec elapsed
+Scores: censoring scores (SL): 15.574 sec elapsed
+Stage 1 matching: 14.149 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Scores: treatment PS + pg0/pg1 (SL): 48.932 sec elapsed
-Stage 2 DoubleScore: 48.935 sec elapsed
+Scores: treatment PS + pg0/pg1 (SL): 33.143 sec elapsed
+Stage 2 DoubleScore: 33.144 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Scores: treatment PS + pg0/pg1 (SL): 155.09 sec elapsed
-Stage 1 DoubleScore: 155.092 sec elapsed
+Scores: treatment PS + pg0/pg1 (SL): 111.273 sec elapsed
+Stage 1 DoubleScore: 111.275 sec elapsed
 Best set of tuning parameters and metrics overall
 
  ntree = 1000
@@ -120,7 +118,7 @@ mtry = 2
 nodesize = 10
 CCR = 0.546726935592095
 OOB = 0.459250100944479
-Score = 12.4968720062604 
+Score = 12.4992031699597 
 #pred = predict(trainmod, newdata = test_data)
 res <- summary(trainmod, newdata = test_data)
 res
