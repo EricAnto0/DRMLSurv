@@ -2,7 +2,7 @@
 % Please edit documentation in R/scores.R
 \name{ComputeScores}
 \alias{ComputeScores}
-\title{Compute propensity and prognostic scores (treatment- or censoring-based)}
+\title{Compute treatment, prognostic, and optional censoring-related scores}
 \usage{
 ComputeScores(
   data,
@@ -15,7 +15,7 @@ ComputeScores(
   doublepg = TRUE,
   outer_CV = 5,
   inner_CV = NULL,
-  stratifyCV = FALSE,
+  stratifyCV = TRUE,
   cores = 5,
   tau = NULL,
   sl.seed = 100,
@@ -37,74 +37,156 @@ ComputeScores(
   standardize = FALSE,
   superLearn = TRUE,
   pslink = "logit",
-  pglink = "lognormal"
+  pglink = "lognormal",
+  sl_parallel = c("multicore", "seq")
 )
 }
 \arguments{
-\item{data}{data.frame with all variables.}
+\item{data}{A \code{data.frame} containing all variables required for fitting.}
 
-\item{id}{Character scalar. Subject ID column name.}
+\item{id}{Character scalar. Subject identifier column name.}
 
-\item{Y}{Character scalar. Survival time column name.}
+\item{Y}{Character scalar. Outcome or follow-up time column name.}
 
-\item{event}{Character scalar. Event indicator column name (1=event, 0=censored).}
+\item{event}{Character scalar. Event indicator column name, coded \code{1} for
+event and \code{0} for censoring.}
 
-\item{X}{Character vector. Covariate column names for prognostic model(s).}
+\item{X}{Character vector. Covariate names used in the prognostic model(s).}
 
-\item{A}{Character scalar. Treatment indicator column name (coded 0/1 or -1/1).}
+\item{A}{Character scalar. Binary treatment indicator column name. Values may
+be coded as \code{0/1} or \code{-1/1}; values equal to \code{1} are treated as
+the treated group.}
 
-\item{Xtrt}{Optional character vector. Covariates for treatment model if different from \code{X}.}
+\item{Xtrt}{Optional character vector. Covariates used in the treatment
+propensity model. If \code{NULL}, \code{X} is used.}
 
-\item{doublepg}{Logical. If TRUE and \code{censmod=FALSE}, fit separate prognostic models by treatment arm.}
+\item{doublepg}{Logical. If \code{TRUE}, estimate treatment-specific
+prognostic scores \code{pg0} and \code{pg1}. If \code{FALSE}, these columns are
+returned but remain \code{NA}.}
 
-\item{outer_CV}{Integer. Outer CV folds.}
+\item{outer_CV}{Integer. Number of outer cross-validation folds.}
 
-\item{inner_CV}{Optional integer. Inner CV folds for nested CV (SuperLearner).}
+\item{inner_CV}{Optional integer. Number of inner cross-validation folds for
+nested SuperLearner fitting.}
 
-\item{stratifyCV}{Logical. Whether to stratify CV folds.}
+\item{stratifyCV}{Logical. Whether to request stratified cross-validation when
+supported by the underlying fitting routine.}
 
-\item{cores}{Integer. Requested cores for parallel fit (multicore only on non-Windows).}
+\item{cores}{Integer. Number of cores requested for fitting.}
 
-\item{tau}{Optional numeric. Truncation horizon for mean survival.}
+\item{tau}{Optional numeric truncation horizon used when constructing the
+prediction time grid for restricted mean calculations.}
 
-\item{sl.seed}{Integer. Seed for SuperLearner.}
+\item{sl.seed}{Integer. Random seed used in SuperLearner-based fitting.}
 
-\item{A.SL.library}{Character vector. SL learners for propensity/censoring models.}
+\item{A.SL.library}{Character vector. SuperLearner library used for treatment
+propensity and censoring-related models.}
 
-\item{Y.SL.library}{Character vector. Learners for survivalSL prognostic models.}
+\item{Y.SL.library}{Character vector. Learners used in \code{survivalSL} for
+treatment-specific prognostic modeling.}
 
-\item{A.method}{Character. CV risk method for propensity SL.}
+\item{A.method}{Character scalar. Risk or loss function passed to
+\code{CV.SuperLearner()}.}
 
-\item{Y.method}{Character. Metric for survivalSL.}
+\item{Y.method}{Character scalar. Metric passed to \code{survivalSL()}.}
 
-\item{param.tune, ngrid, param.weights.fix, param.weights.init, optim.method, penalty, maxit}{Control survivalSL fitting and prediction.}
+\item{param.tune}{Optional tuning object passed to \code{survivalSL()}.}
 
-\item{pgcens, pscens, censmod}{Logical flags controlling censoring scores.}
+\item{ngrid}{Integer. Number of grid points used for survival-curve prediction
+and numerical integration.}
 
-\item{model.pg}{Character. "cox" or "aft" for non-SL prognostic modeling.}
+\item{param.weights.fix}{Optional vector of fixed ensemble weights passed to
+\code{survivalSL()} when supported.}
 
-\item{standardize}{Logical. Standardize covariates for glmnet.}
+\item{param.weights.init}{Optional vector of initial ensemble weights passed to
+\code{survivalSL()} when supported.}
 
-\item{superLearn}{Logical. Use SuperLearner/survivalSL branches if TRUE.}
+\item{optim.method}{Character scalar. Optimization method passed to
+\code{survivalSL()}.}
 
-\item{pslink}{Character. "logit" or "probit".}
+\item{penalty}{Optional penalty value passed to \code{survivalSL()} or
+penalized regression routines.}
 
-\item{pglink}{Character. AFT distribution for flexsurvreg.}
+\item{pgcens}{Logical. If \code{TRUE} and \code{censmod = TRUE}, estimate the
+censoring-related prognostic score \code{pgcens}.}
+
+\item{pscens}{Logical. If \code{TRUE} and \code{censmod = TRUE}, estimate the
+censoring-related propensity score \code{pscens}.}
+
+\item{censmod}{Logical. If \code{TRUE}, request censoring-related scores in
+addition to treatment-based scores.}
+
+\item{maxit}{Integer. Maximum number of optimization iterations passed to
+\code{survivalSL()}.}
+
+\item{model.pg}{Character scalar. Prognostic model family used when
+\code{superLearn = FALSE}. Must be one of \code{"cox"} or \code{"aft"}.}
+
+\item{standardize}{Logical. Whether to standardize predictors in glmnet-based
+fits.}
+
+\item{superLearn}{Logical. If \code{TRUE}, use SuperLearner / survivalSL-based
+estimation. Otherwise use glm / glmnet / Cox / AFT alternatives.}
+
+\item{pslink}{Character scalar. Link function for binomial propensity models.
+Must be one of \code{"logit"} or \code{"probit"}.}
+
+\item{pglink}{Character scalar. Distribution used in
+\code{flexsurv::flexsurvreg()} when \code{model.pg = "aft"}.}
+
+\item{sl_parallel}{Character scalar. Parallel mode for SuperLearner-based
+fitting. Must be one of \code{"multicore"} or \code{"seq"}.}
 }
 \value{
-A data.frame with stable columns:
+A \code{data.frame} with one row per subject and the following stable columns:
 \itemize{
-\item \code{id}: ID values
-\item \code{ps}: treatment propensity score (if computed)
-\item \code{pg0}, \code{pg1}: treatment-specific prognostic scores (if computed)
-\item \code{pscens}: censoring propensity score (if computed)
-\item \code{pgcens}: censoring prognostic score (if computed)
+\item \code{id}: subject identifier,
+\item \code{ps}: treatment propensity score,
+\item \code{pg0}, \code{pg1}: treatment-specific prognostic scores,
+\item \code{pscens}: censoring-related propensity score,
+\item \code{pgcens}: censoring-related prognostic score,
+\item \code{ps_sc}, \code{pg0_sc}, \code{pg1_sc}, \code{pscens_sc},
+\code{pgcens_sc}: scaled versions of the corresponding scores.
 }
 }
 \description{
-Computes (i) a propensity score and (ii) prognostic score(s) for use in
-matching/weighting pipelines. Supports SuperLearner-based fitting or
-glm/glmnet-based alternatives. Can compute treatment PS + treatment-specific
-prognostic scores (pg0/pg1), or censoring PS/PG (pscens/pgcens) when
-\code{censmod=TRUE}.
+Computes subject-level score summaries for downstream matching, weighting, or
+augmentation procedures. The function always estimates a treatment propensity
+score and can additionally estimate treatment-specific prognostic scores and
+censoring-related scores, depending on the supplied flags.
+
+Estimation may be carried out using SuperLearner / survivalSL-based models or
+via glm / glmnet / Cox / AFT alternatives.
+}
+\details{
+\strong{Treatment propensity score.}
+
+The function estimates \code{ps}, the probability of treatment conditional on
+\code{Xtrt} when supplied, or on \code{X} otherwise.
+
+\strong{Treatment-specific prognostic scores.}
+
+If \code{doublepg = TRUE}, the function estimates \code{pg0} and \code{pg1},
+corresponding to treatment-specific prognostic scores obtained by fitting
+separate prognostic models within the observed treatment groups.
+
+\strong{Censoring-related scores.}
+
+If \code{censmod = TRUE}, the function may additionally estimate
+\code{pscens} and \code{pgcens}, depending on \code{pscens} and
+\code{pgcens}. These are constructed using covariates \code{c(X, A)} and the
+supplied \code{event} indicator.
+
+\strong{Scaled outputs.}
+
+The function also returns scaled versions of the raw scores:
+\code{ps_sc}, \code{pg0_sc}, \code{pg1_sc}, \code{pscens_sc}, and
+\code{pgcens_sc}. Propensity-type scores are transformed to the logit scale
+before standardization.
+
+\strong{Parallel fitting.}
+
+When \code{superLearn = TRUE}, parallel behavior for SuperLearner-based
+estimation is controlled by \code{sl_parallel}. On Windows, multicore mode is
+automatically downgraded to sequential execution.
 }
