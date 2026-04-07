@@ -107,7 +107,6 @@
 #' @seealso \code{\link{ComputeScores}}, \code{impute_censored_stage2}, \code{impute_censored_stage1}
 #' @export
 
-
 impute_censored_outcomes <- function(
     data,
     id.var, eta2.var,
@@ -136,19 +135,18 @@ impute_censored_outcomes <- function(
     penalty2      = NULL,
     ngrid         = 50,
     pscens        = TRUE,
-    pgcens        = TRUE,
+    pgcens       = TRUE,
     param.tune    = NULL,
     plotps        = FALSE,
-    model.pg      = "cox",      # "cox" or "aft"
-    standardize   = FALSE,      # Standardize covariates for glmnet
-    superLearn    = TRUE,       # Whether to use SuperLearner or glmnet
-    pslink        = "logit",    # "logit" or "probit"
-    distance      = "mahalanobis",
-    method        = "nearest",  # "nearest" or "optimal"
-    K             = 3,          # donor ratio
-    replacement   = TRUE
+    model.pg      = 'cox', # "cox" or "aft"
+    standardize   = FALSE, # Standardize covariates for glmnet
+    superLearn    = TRUE, # Whether to use SuperLearner or glmnet
+    pslink        = 'logit', # "logit" or "probit"
+    distance = 'mahalanobis',
+    method   = 'nearest',       # "nearest" or "optimal"
+    K        = 3,            # donor ratio
+    replacement = TRUE
 ) {
-  # ---- fast validation ----
   stopifnot(is.data.frame(data))
   req_cols <- c(id.var, eta2.var, Y1.var, Y2.var, delta.var, OY.var, A1.var, A2.var)
   miss_cols <- setdiff(req_cols, names(data))
@@ -225,105 +223,23 @@ impute_censored_outcomes <- function(
       stop("ComputeScores() not found. It must be included in your package when usecov=FALSE.", call. = FALSE)
     }
 
-    ds2 <- ComputeScores(
-      data         = df2,
-      id           = id.var,
-      Y            = Y2.var,
-      event        = delta.var,
-      X            = names.var2,
-      A            = A2.var,
-      censmod      = TRUE,
-      doublepg     = FALSE,
-      outer_CV     = 5,
-      inner_CV     = 5,
-      stratifyCV   = FALSE,
-      cores        = cores,
-      tau          = tau,
-      sl.seed      = sl.seed,
-      A.SL.library = A.SL.library2,
-      Y.SL.library = Y.SL.library,
-      A.method     = A.method,
-      Y.method     = Y.method,
-      param.weights.fix  = param.weights.fix,
-      param.weights.init = param.weights.init,
-      optim.method = optim.method,
-      maxit        = maxit,
-      penalty      = penalty2,
-      ngrid        = ngrid,
-      pscens       = pscens,
-      pgcens       = pgcens,
-      param.tune   = param.tune,
-      model.pg     = model.pg,
-      standardize  = standardize,
-      superLearn   = superLearn,
-      pslink       = pslink
-    )
-
-    ds2 <- as.data.frame(ds2)
-    if (!id.var %in% names(ds2)) names(ds2)[1] <- id.var
-
-    # Standardized score frame for matching covariates (pscens2 / pgcens2)
-    dsp2 <- ds2[, id.var, drop = FALSE]
-
-    if (pscens) {
-      if (!"pscens" %in% names(ds2)) stop("ComputeScores did not return 'pscens' for stage 2.", call. = FALSE)
-      ds2$pscens <- as.numeric(ds2$pscens)
-
-      if (plotps) {
-        if (!exists("propensityplot", mode = "function")) {
-          stop("plotps=TRUE requires a function 'propensityplot()' available in the package.", call. = FALSE)
-        }
-        p <- propensityplot(ps = ds2[["pscens"]], A = df2[[delta.var]])
-        if (requireNamespace("ggplot2", quietly = TRUE)) {
-          p <- p + ggplot2::labs(fill = "Event", colour = "Event")
-        }
-        print(p)
-      }
-
-      # logit-transform then z-score for matching distance
-      dsp2$pscens2 <- as.numeric(scale(safe_qlogis(ds2$pscens)))
-      # keep raw probability too, but do not overwrite pscens
-      ds2$psprobcens2 <- ds2$pscens
-    }
-
-    if (pgcens) {
-      if (!"pgcens" %in% names(ds2)) stop("ComputeScores did not return 'pgcens' for stage 2.", call. = FALSE)
-      ds2$pgcens <- as.numeric(ds2$pgcens)
-      dsp2$pgcens2 <- as.numeric(scale(ds2$pgcens))
-      ds2$pgprobcens2 <- ds2$pgcens
-    }
-
-    # keep only ID + raw score columns we created, to avoid clutter/duplication
-    keep_raw2 <- c(id.var,
-                   if (pscens) "psprobcens2",
-                   if (pgcens) "pgprobcens2")
-    ds2_out <- ds2[, keep_raw2, drop = FALSE]
-
-    # merge back into df (all subjects; stage-2 non-entrants get NAs)
-    df <- merge(df, ds2_out, by = id.var, all.x = TRUE)
-    df <- merge(df, dsp2,   by = id.var, all.x = TRUE)
   }
 
-  # refresh df2 after merges
-  df2 <- df[df[[eta2.var]] == 1, , drop = FALSE]
-
-  # ---- stage 2 matching / imputation ----
-  tick("Stage 2 matching")
-
+  tictoc::tic("Stage 2 matching")
   res2 <- impute_censored_stage2(
     dat        = df2,
     id.var     = id.var,
-    delta.var  = delta.var,
+    delta.var  = delta.var,     # your stage-2 event indicator
     OY.var     = OY.var,
-    Y2.var     = Y2.var,
+    Y2.var     = Y2.var,        # the outcome column you were pulling at ix
     formula2   = formula2,
     exact.vars = exact2.vars,
-    method     = method,
+    method     = method,        # "nearest" or "optimal"
     distance   = distance,
-    k          = K,
+    k          = K,   # set >1 for multiple donors
     replace    = replacement,
     caliper    = NULL,
-    aggregate  = "mean"
+    aggregate  = "mean"         # or "weighted" or "nearest"
   )
 
   say("With ", nrow(df2), " subjects who entered stage 2, ",
@@ -353,82 +269,10 @@ impute_censored_outcomes <- function(
 
   tock()
 
-  # ---- censoring scores for stage 1 (optional) ----
-  if (!usecov) {
-    ds1 <- ComputeScores(
-      data         = df,
-      id           = id.var,
-      Y            = if (adjustdelta1) Y1.var else OY.var,
-      event        = if (adjustdelta1) "deltaadj" else delta.var,
-      X            = names.var1,
-      A            = A1.var,
-      doublepg     = FALSE,
-      censmod      = TRUE,
-      outer_CV     = 5,
-      inner_CV     = 5,
-      stratifyCV   = FALSE,
-      cores        = cores,
-      tau          = tau,
-      sl.seed      = sl.seed,
-      A.SL.library = A.SL.library1,
-      Y.SL.library = Y.SL.library,
-      A.method     = A.method,
-      Y.method     = Y.method,
-      param.weights.fix  = param.weights.fix,
-      param.weights.init = param.weights.init,
-      optim.method = optim.method,
-      maxit        = maxit,
-      penalty      = penalty1,
-      pscens       = pscens,
-      pgcens       = pgcens,
-      ngrid        = ngrid,
-      param.tune   = param.tune,
-      model.pg     = model.pg,
-      standardize  = standardize,
-      superLearn   = superLearn,
-      pslink       = pslink
-    )
+  #df$compOY[is.na(df$compOY)] <- df[[OY.var]][is.na(df$compOY)]
+  # DoubleScore stage 1
 
-    ds1 <- as.data.frame(ds1)
-    if (!id.var %in% names(ds1)) names(ds1)[1] <- id.var
-
-    dsp1 <- ds1[, id.var, drop = FALSE]
-
-    if (pscens) {
-      if (!"pscens" %in% names(ds1)) stop("ComputeScores did not return 'pscens' for stage 1.", call. = FALSE)
-      ds1$pscens <- as.numeric(ds1$pscens)
-
-      if (plotps) {
-        if (!exists("propensityplot", mode = "function")) {
-          stop("plotps=TRUE requires a function 'propensityplot()' available in the package.", call. = FALSE)
-        }
-        p <- propensityplot(ps = ds1[["pscens"]], A = df[[delta.var]])
-        if (requireNamespace("ggplot2", quietly = TRUE)) {
-          p <- p + ggplot2::labs(fill = "Event", colour = "Event")
-        }
-        print(p)
-      }
-
-      dsp1$pscens1 <- as.numeric(scale(safe_qlogis(ds1$pscens)))
-      ds1$psprobcens1 <- ds1$pscens
-    }
-
-    if (pgcens) {
-      if (!"pgcens" %in% names(ds1)) stop("ComputeScores did not return 'pgcens' for stage 1.", call. = FALSE)
-      ds1$pgcens <- as.numeric(ds1$pgcens)
-      dsp1$pgcens1 <- as.numeric(scale(ds1$pgcens))
-      ds1$pgprobcens1 <- ds1$pgcens
-    }
-
-    keep_raw1 <- c(id.var,
-                   if (pscens) "psprobcens1",
-                   if (pgcens) "pgprobcens1")
-    ds1_out <- ds1[, keep_raw1, drop = FALSE]
-
-    df <- merge(df, ds1_out, by = id.var, all.x = TRUE)
-    df <- merge(df, dsp1,   by = id.var, all.x = TRUE)
-  }
-
+  # Matching stage 1
   # ---- stage 1 matching / imputation ----
   tick("Stage 1 matching")
 
@@ -456,9 +300,8 @@ impute_censored_outcomes <- function(
 
   finaldf <- res1$data_merged
   finaldf
+
 }
-
-
 
 #' Impute censored stage-1 composite outcomes via constrained donor matching
 #'

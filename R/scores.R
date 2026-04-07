@@ -1,361 +1,155 @@
-#' Compute propensity and prognostic scores (treatment- or censoring-based)
+
+#' Internal helper to annotate errors with a step label
+#'
+#' @param expr Expression to evaluate.
+#' @param label Character scalar used to prefix any thrown error.
+#'
+#' @return The result of \code{expr}, or an error with a labeled message.
+#' @keywords internal
+tag_error <- function(expr, label) {
+  tryCatch(
+    expr,
+    error = function(e) {
+      stop(sprintf("[%s] %s", label, conditionMessage(e)), call. = FALSE)
+    }
+  )
+}
+
+#' Compute treatment, prognostic, and optional censoring-related scores
 #'
 #' @description
-#' Computes (i) a propensity score and (ii) prognostic score(s) for use in
-#' matching/weighting pipelines. Supports SuperLearner-based fitting or
-#' glm/glmnet-based alternatives. Can compute treatment PS + treatment-specific
-#' prognostic scores (pg0/pg1), or censoring PS/PG (pscens/pgcens) when
-#' \code{censmod=TRUE}.
+#' Computes subject-level score summaries for downstream matching, weighting, or
+#' augmentation procedures. The function always estimates a treatment propensity
+#' score and can additionally estimate treatment-specific prognostic scores and
+#' censoring-related scores, depending on the supplied flags.
 #'
-#' @param data data.frame with all variables.
-#' @param id Character scalar. Subject ID column name.
-#' @param Y Character scalar. Survival time column name.
-#' @param event Character scalar. Event indicator column name (1=event, 0=censored).
-#' @param X Character vector. Covariate column names for prognostic model(s).
-#' @param A Character scalar. Treatment indicator column name (coded 0/1 or -1/1).
-#' @param Xtrt Optional character vector. Covariates for treatment model if different from \code{X}.
-#' @param doublepg Logical. If TRUE and \code{censmod=FALSE}, fit separate prognostic models by treatment arm.
-#' @param outer_CV Integer. Outer CV folds.
-#' @param inner_CV Optional integer. Inner CV folds for nested CV (SuperLearner).
-#' @param stratifyCV Logical. Whether to stratify CV folds.
-#' @param cores Integer. Requested cores for parallel fit (multicore only on non-Windows).
-#' @param tau Optional numeric. Truncation horizon for mean survival.
-#' @param sl.seed Integer. Seed for SuperLearner.
-#' @param A.SL.library Character vector. SL learners for propensity/censoring models.
-#' @param Y.SL.library Character vector. Learners for survivalSL prognostic models.
-#' @param A.method Character. CV risk method for propensity SL.
-#' @param Y.method Character. Metric for survivalSL.
-#' @param param.tune,ngrid,param.weights.fix,param.weights.init,optim.method,penalty,maxit
-#' Control survivalSL fitting and prediction.
-#' @param pgcens,pscens,censmod Logical flags controlling censoring scores.
-#' @param model.pg Character. "cox" or "aft" for non-SL prognostic modeling.
-#' @param standardize Logical. Standardize covariates for glmnet.
-#' @param superLearn Logical. Use SuperLearner/survivalSL branches if TRUE.
-#' @param pslink Character. "logit" or "probit".
-#' @param pglink Character. AFT distribution for flexsurvreg.
+#' Estimation may be carried out using SuperLearner / survivalSL-based models or
+#' via glm / glmnet / Cox / AFT alternatives.
 #'
-#' @return A data.frame with stable columns:
+#' @details
+#' \strong{Treatment propensity score.}
+#'
+#' The function estimates \code{ps}, the probability of treatment conditional on
+#' \code{Xtrt} when supplied, or on \code{X} otherwise.
+#'
+#' \strong{Treatment-specific prognostic scores.}
+#'
+#' If \code{doublepg = TRUE}, the function estimates \code{pg0} and \code{pg1},
+#' corresponding to treatment-specific prognostic scores obtained by fitting
+#' separate prognostic models within the observed treatment groups.
+#'
+#' \strong{Censoring-related scores.}
+#'
+#' If \code{censmod = TRUE}, the function may additionally estimate
+#' \code{pscens} and \code{pgcens}, depending on \code{pscens} and
+#' \code{pgcens}. These are constructed using covariates \code{c(X, A)} and the
+#' supplied \code{event} indicator.
+#'
+#' \strong{Scaled outputs.}
+#'
+#' The function also returns scaled versions of the raw scores:
+#' \code{ps_sc}, \code{pg0_sc}, \code{pg1_sc}, \code{pscens_sc}, and
+#' \code{pgcens_sc}. Propensity-type scores are transformed to the logit scale
+#' before standardization.
+#'
+#' \strong{Parallel fitting.}
+#'
+#' When \code{superLearn = TRUE}, parallel behavior for SuperLearner-based
+#' estimation is controlled by \code{sl_parallel}. On Windows, multicore mode is
+#' automatically downgraded to sequential execution.
+#'
+#' @param data A \code{data.frame} containing all variables required for fitting.
+#' @param id Character scalar. Subject identifier column name.
+#' @param Y Character scalar. Outcome or follow-up time column name.
+#' @param event Character scalar. Event indicator column name, coded \code{1} for
+#' event and \code{0} for censoring.
+#' @param X Character vector. Covariate names used in the prognostic model(s).
+#' @param A Character scalar. Binary treatment indicator column name. Values may
+#' be coded as \code{0/1} or \code{-1/1}; values equal to \code{1} are treated as
+#' the treated group.
+#' @param Xtrt Optional character vector. Covariates used in the treatment
+#' propensity model. If \code{NULL}, \code{X} is used.
+#' @param doublepg Logical. If \code{TRUE}, estimate treatment-specific
+#' prognostic scores \code{pg0} and \code{pg1}. If \code{FALSE}, these columns are
+#' returned but remain \code{NA}.
+#' @param outer_CV Integer. Number of outer cross-validation folds.
+#' @param inner_CV Optional integer. Number of inner cross-validation folds for
+#' nested SuperLearner fitting.
+#' @param stratifyCV Logical. Whether to request stratified cross-validation when
+#' supported by the underlying fitting routine.
+#' @param cores Integer. Number of cores requested for fitting.
+#' @param tau Optional numeric truncation horizon used when constructing the
+#' prediction time grid for restricted mean calculations.
+#' @param sl.seed Integer. Random seed used in SuperLearner-based fitting.
+#' @param A.SL.library Character vector. SuperLearner library used for treatment
+#' propensity and censoring-related models.
+#' @param Y.SL.library Character vector. Learners used in \code{survivalSL} for
+#' treatment-specific prognostic modeling.
+#' @param A.method Character scalar. Risk or loss function passed to
+#' \code{CV.SuperLearner()}.
+#' @param Y.method Character scalar. Metric passed to \code{survivalSL()}.
+#' @param param.tune Optional tuning object passed to \code{survivalSL()}.
+#' @param ngrid Integer. Number of grid points used for survival-curve prediction
+#' and numerical integration.
+#' @param param.weights.fix Optional vector of fixed ensemble weights passed to
+#' \code{survivalSL()} when supported.
+#' @param param.weights.init Optional vector of initial ensemble weights passed to
+#' \code{survivalSL()} when supported.
+#' @param optim.method Character scalar. Optimization method passed to
+#' \code{survivalSL()}.
+#' @param penalty Optional penalty value passed to \code{survivalSL()} or
+#' penalized regression routines.
+#' @param pgcens Logical. If \code{TRUE} and \code{censmod = TRUE}, estimate the
+#' censoring-related prognostic score \code{pgcens}.
+#' @param pscens Logical. If \code{TRUE} and \code{censmod = TRUE}, estimate the
+#' censoring-related propensity score \code{pscens}.
+#' @param censmod Logical. If \code{TRUE}, request censoring-related scores in
+#' addition to treatment-based scores.
+#' @param maxit Integer. Maximum number of optimization iterations passed to
+#' \code{survivalSL()}.
+#' @param model.pg Character scalar. Prognostic model family used when
+#' \code{superLearn = FALSE}. Must be one of \code{"cox"} or \code{"aft"}.
+#' @param standardize Logical. Whether to standardize predictors in glmnet-based
+#' fits.
+#' @param superLearn Logical. If \code{TRUE}, use SuperLearner / survivalSL-based
+#' estimation. Otherwise use glm / glmnet / Cox / AFT alternatives.
+#' @param pslink Character scalar. Link function for binomial propensity models.
+#' Must be one of \code{"logit"} or \code{"probit"}.
+#' @param pglink Character scalar. Distribution used in
+#' \code{flexsurv::flexsurvreg()} when \code{model.pg = "aft"}.
+#' numeric matrix; otherwise return a \code{data.frame}.
+#' @param sl_parallel Character scalar. Parallel mode for SuperLearner-based
+#' fitting. Must be one of \code{"multicore"} or \code{"seq"}.
+#'
+#' @return
+#' A \code{data.frame} with one row per subject and the following stable columns:
 #' \itemize{
-#'   \item \code{id}: ID values
-#'   \item \code{ps}: treatment propensity score (if computed)
-#'   \item \code{pg0}, \code{pg1}: treatment-specific prognostic scores (if computed)
-#'   \item \code{pscens}: censoring propensity score (if computed)
-#'   \item \code{pgcens}: censoring prognostic score (if computed)
+#'   \item \code{id}: subject identifier,
+#'   \item \code{ps}: treatment propensity score,
+#'   \item \code{pg0}, \code{pg1}: treatment-specific prognostic scores,
+#'   \item \code{pscens}: censoring-related propensity score,
+#'   \item \code{pgcens}: censoring-related prognostic score,
+#'   \item \code{ps_sc}, \code{pg0_sc}, \code{pg1_sc}, \code{pscens_sc},
+#'   \code{pgcens_sc}: scaled versions of the corresponding scores.
 #' }
 #'
+#'
 #' @export
-# ComputeScores <- function(data, id, Y, event, X, A,
-#                           Xtrt = NULL,
-#                           doublepg = TRUE,
-#                           outer_CV = 5,
-#                           inner_CV = NULL,
-#                           stratifyCV = FALSE,
-#                           cores = 5, tau = NULL,
-#                           sl.seed = 100,
-#                           A.SL.library = c("SL.mean","SL.glm","SL.glmnet","SL.ranger","SL.xgboost"),
-#                           Y.SL.library = c("LIB_COXen","LIB_AFTggamma"),
-#                           A.method = "method.AUC", Y.method = "auc",
-#                           param.tune = NULL, ngrid = 2000,
-#                           param.weights.fix = NULL,
-#                           param.weights.init = NULL,
-#                           optim.method = "Nelder-Mead",
-#                           penalty = NULL,
-#                           pgcens = FALSE,
-#                           pscens = TRUE,
-#                           censmod = TRUE,
-#                           maxit = 1000,
-#                           model.pg = "cox",
-#                           standardize = FALSE,
-#                           superLearn = TRUE,
-#                           pslink = "logit",
-#                           pglink = "lognormal") {
-#
-#   # ---------- input validation (fast fail) ----------
-#   stopifnot(is.data.frame(data))
-#   for (nm in c(id, Y, event, A)) {
-#     if (!nm %in% names(data)) stop("Column '", nm, "' not found in data.", call. = FALSE)
-#   }
-#   if (!is.character(X) || length(X) < 1L) stop("X must be a non-empty character vector.", call. = FALSE)
-#   if (!all(X %in% names(data))) stop("Some X columns not found in data.", call. = FALSE)
-#   if (!is.null(Xtrt) && !all(Xtrt %in% names(data))) stop("Some Xtrt columns not found in data.", call. = FALSE)
-#   outer_CV <- as.integer(outer_CV)
-#   if (outer_CV < 2L) stop("outer_CV must be >= 2.", call. = FALSE)
-#   cores <- as.integer(cores)
-#   if (cores < 1L) stop("cores must be >= 1.", call. = FALSE)
-#
-#   # Event indicator must be 0/1 (or logical)
-#   Event <- data[[event]]
-#   if (is.logical(Event)) Event <- as.integer(Event)
-#   if (!all(Event %in% c(0L, 1L, NA_integer_))) {
-#     stop("'", event, "' must be coded 0/1 (1=event, 0=censored).", call. = FALSE)
-#   }
-#
-#   # Treatment indicator: accept -1/1 or 0/1
-#   AA <- data[[A]]
-#   A_bin <- ifelse(AA == 1, 1L, 0L)
-#   if (!all(A_bin %in% c(0L, 1L, NA_integer_))) stop("Treatment variable must be binary or -1/1.", call. = FALSE)
-#
-#   Id <- data[[id]]
-#   YY <- data[[Y]]
-#   XX <- data[, X, drop = FALSE]
-#   x  <- data.matrix(XX)
-#
-#   xtrt <- if (!is.null(Xtrt)) data.matrix(data[, Xtrt, drop = FALSE]) else x
-#
-#   loc1 <- which(A_bin == 1L)
-#   loc0 <- which(A_bin == 0L)
-#
-#   # stable return contract
-#   out <- data.frame(
-#     id     = Id,
-#     ps     = NA_real_,
-#     pg0    = NA_real_,
-#     pg1    = NA_real_,
-#     pscens = NA_real_,
-#     pgcens = NA_real_
-#   )
-#   names(out)[1] <- id
-#
-#   # ---------- helpers ----------
-#   pred_mean <- function(Smat, time_grid) {
-#     if (length(time_grid) != ncol(Smat)) stop("time_grid length mismatch with Smat.", call. = FALSE)
-#     if (any(diff(time_grid) <= 0)) stop("time_grid must be strictly increasing.", call. = FALSE)
-#     apply(Smat, 1, function(surv_i) {
-#       dt   <- diff(time_grid)
-#       mids <- (surv_i[-1] + surv_i[-length(surv_i)]) / 2
-#       sum(mids * dt)
-#     })
-#   }
-#
-#   parallel_mode <- if (cores > 1L && .Platform$OS.type != "windows") "multicore" else "seq"
-#
-#   # dependency guards
-#   if (superLearn) {
-#     if (!requireNamespace("SuperLearner", quietly = TRUE)) {
-#       stop("Package 'SuperLearner' is required when superLearn=TRUE.", call. = FALSE)
-#     }
-#   }
-#   # survival is effectively required for Surv/coxph branches
-#   if (!requireNamespace("survival", quietly = TRUE)) {
-#     stop("Package 'survival' is required.", call. = FALSE)
-#   }
-#   if (!superLearn && !requireNamespace("glmnet", quietly = TRUE)) {
-#     stop("Package 'glmnet' is required when superLearn=FALSE.", call. = FALSE)
-#   }
-#
-#   if (superLearn && !requireNamespace("survivalSL", quietly = TRUE)) {
-#     stop("Package 'survivalSL' is required when superLearn=TRUE", call. = FALSE)
-#   }
-#   if (!superLearn && model.pg == "aft" && !requireNamespace("flexsurv", quietly = TRUE)) {
-#     stop("Package 'flexsurv' is required for model.pg='aft'.", call. = FALSE)
-#   }
-#
-#   # ---------- main branches ----------
-#   if (censmod && superLearn) {
-#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: censoring scores (SL)")
-#
-#     # censoring PS: P(Event=1 | X) if that's what you intend
-#     if (pscens) {
-#       innerCvControl_value <- if (!is.null(inner_CV)) {
-#         rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
-#       } else NULL
-#
-#       set.seed(sl.seed, "L'Ecuyer-CMRG")
-#       sl_out <- SuperLearner::CV.SuperLearner(
-#         Y = Event,
-#         X = as.data.frame(x),
-#         family = stats::binomial(link = pslink),
-#         method = A.method,
-#         SL.library = A.SL.library,
-#         cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
-#         innerCvControl = innerCvControl_value,
-#         parallel = parallel_mode,
-#         env = getNamespace("SuperLearner")
-#       )
-#       out[["pscens"]] <- as.numeric(sl_out$SL.predict)
-#     }
-#
-#     if (pgcens) {
-#       # simple PG on uncensored only; you may want to revisit this estimand
-#       uncensored <- data[Event == 1L, c(Y, X, A), drop = FALSE]
-#       if (nrow(uncensored) > 0) {
-#         set.seed(sl.seed, "L'Ecuyer-CMRG")
-#         sl_fit <- SuperLearner::SuperLearner(
-#           Y = uncensored[[Y]],
-#           X = uncensored[, c(X, A), drop = FALSE],
-#           family = stats::gaussian(),
-#           SL.library = A.SL.library,
-#           cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
-#           env = getNamespace("SuperLearner")
-#         )
-#         out[["pgcens"]] <- as.numeric(predict(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred)
-#       }
-#     }
-#
-#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-#
-#   } else if (!censmod && doublepg && superLearn) {
-#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: treatment PS + pg0/pg1 (SL)")
-#
-#     # treatment PS
-#     innerCvControl_value <- if (!is.null(inner_CV)) {
-#       rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
-#     } else NULL
-#
-#     set.seed(sl.seed, "L'Ecuyer-CMRG")
-#     sl_out <- SuperLearner::CV.SuperLearner(
-#       Y = A_bin,
-#       X = as.data.frame(xtrt),
-#       family = stats::binomial(link = pslink),
-#       method = A.method,
-#       SL.library = A.SL.library,
-#       cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
-#       innerCvControl = innerCvControl_value,
-#       parallel = parallel_mode,
-#       env = getNamespace("SuperLearner")
-#     )
-#     out[["ps"]] <- as.numeric(sl_out$SL.predict)
-#
-#     # prognostic via survivalSL (NOTE: survivalSL must exist in your package or dependency)
-#     # if (!exists("survivalSL", mode = "function")) {
-#     #   stop("Function 'survivalSL' not found. Include it in your package or import from its source.", call. = FALSE)
-#     # }
-#
-#     X_df <- data[, X, drop = FALSE]
-#     tmax <- if (is.null(tau)) max(YY, na.rm = TRUE) else tau
-#
-#     if (length(loc1) > 0) {
-#       survdata1 <- data[loc1, c(Y, event, X), drop = FALSE]
-#       f1 <- stats::as.formula(paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+")))
-#       slres1 <- survivalSL::survivalSL(
-#         formula = f1, methods = Y.SL.library, metric = Y.method, data = survdata1,
-#         cv = outer_CV, param.tune = param.tune, seed = sl.seed,
-#         param.weights.fix = param.weights.fix, param.weights.init = param.weights.init,
-#         maxit = maxit, penalty = penalty, show_progress = TRUE
-#       )
-#       grid1 <- seq(0, tmax, length.out = ngrid)
-#       pred1 <- predict(slres1, newdata = X_df, newtimes = grid1)
-#       out[["pg1"]] <- pred_mean(pred1$predictions$sl, pred1$times)
-#     }
-#
-#     if (length(loc0) > 0) {
-#       survdata0 <- data[loc0, c(Y, event, X), drop = FALSE]
-#       f0 <- stats::as.formula(paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+")))
-#       slres0 <- survivalSL::survivalSL(
-#         formula = f0, methods = Y.SL.library, metric = Y.method, data = survdata0,
-#         cv = outer_CV, param.tune = param.tune, seed = sl.seed,
-#         param.weights.fix = param.weights.fix, param.weights.init = param.weights.init,
-#         maxit = maxit, penalty = penalty, show_progress = TRUE
-#       )
-#       grid0 <- seq(0, tmax, length.out = ngrid)
-#       pred0 <- predict(slres0, newdata = X_df, newtimes = grid0)
-#       out[["pg0"]] <- pred_mean(pred0$predictions$sl, pred0$times)
-#     }
-#
-#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-#
-#   } else if (censmod && !superLearn) {
-#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: censoring scores (glm/glmnet)")
-#
-#     # censoring PS
-#     if (pscens) {
-#       if (ncol(x) > 1L) {
-#         cvfit <- glmnet::cv.glmnet(x, Event, family = stats::binomial(link = pslink),
-#                                    nfolds = outer_CV, standardize = standardize)
-#         out[["pscens"]] <- as.numeric(predict(cvfit, newx = x, s = "lambda.min", type = "response"))
-#       } else {
-#         df1 <- data.frame(Event = Event, x = x[, 1])
-#         fit <- stats::glm(Event ~ x, data = df1, family = stats::binomial(link = pslink))
-#         out[["pscens"]] <- as.numeric(stats::predict(fit, newdata = df1, type = "response"))
-#       }
-#     }
-#
-#     # censoring PG (you used gaussian on Event previously; that seems off; keep as-is but consistent)
-#     if (pgcens) {
-#       Xpg <- data.matrix(data[, c(X, A), drop = FALSE])
-#       cvfit <- glmnet::cv.glmnet(Xpg, Event, family = "gaussian",
-#                                  nfolds = outer_CV, standardize = standardize)
-#       out[["pgcens"]] <- as.numeric(predict(cvfit, newx = Xpg, s = "lambda.min", type = "response"))
-#     }
-#
-#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-#
-#   } else if (!censmod && doublepg && !superLearn) {
-#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: treatment PS + pg0/pg1 (glm/glmnet)")
-#
-#     # treatment PS
-#     if (ncol(xtrt) > 1L) {
-#       cvfit <- glmnet::cv.glmnet(xtrt, A_bin, family = stats::binomial(link = pslink),
-#                                  nfolds = outer_CV, standardize = standardize)
-#       out[["ps"]] <- as.numeric(predict(cvfit, newx = xtrt, s = "lambda.min", type = "response"))
-#     } else {
-#       df1 <- data.frame(A_bin = A_bin, xtrt = xtrt[, 1])
-#       fit <- stats::glm(A_bin ~ xtrt, data = df1, family = stats::binomial(link = pslink))
-#       out[["ps"]] <- as.numeric(stats::predict(fit, newdata = df1, type = "response"))
-#     }
-#
-#     # prognostic models
-#     if (model.pg == "cox") {
-#       if (length(loc1) > 0) {
-#         Y1 <- survival::Surv(YY[loc1], Event[loc1])
-#         X1 <- data.matrix(XX[loc1, , drop = FALSE])
-#         if (ncol(X1) > 1L) {
-#           cv1 <- glmnet::cv.glmnet(X1, Y1, family = "cox", nfolds = outer_CV, standardize = standardize)
-#           out[["pg1"]] <- as.numeric(predict(cv1, newx = x, s = "lambda.min", type = "link"))
-#         } else {
-#           dfc <- data.frame(time = YY[loc1], status = Event[loc1], x1 = X1[, 1])
-#           fit <- survival::coxph(survival::Surv(time, status) ~ x1, data = dfc)
-#           out[["pg1"]] <- as.numeric(stats::predict(fit, newdata = data.frame(x1 = x[, 1]), type = "lp"))
-#         }
-#       }
-#       if (length(loc0) > 0) {
-#         Y0 <- survival::Surv(YY[loc0], Event[loc0])
-#         X0 <- data.matrix(XX[loc0, , drop = FALSE])
-#         if (ncol(X0) > 1L) {
-#           cv0 <- glmnet::cv.glmnet(X0, Y0, family = "cox", nfolds = outer_CV, standardize = standardize)
-#           out[["pg0"]] <- as.numeric(predict(cv0, newx = x, s = "lambda.min", type = "link"))
-#         } else {
-#           dfc <- data.frame(time = YY[loc0], status = Event[loc0], x0 = X0[, 1])
-#           fit <- survival::coxph(survival::Surv(time, status) ~ x0, data = dfc)
-#           out[["pg0"]] <- as.numeric(stats::predict(fit, newdata = data.frame(x0 = x[, 1]), type = "lp"))
-#         }
-#       }
-#
-#     } else if (model.pg == "aft") {
-#       # AFT pg as mean survival time from flexsurvreg
-#       if (length(loc1) > 0) {
-#         d1 <- data.frame(time = YY[loc1], status = Event[loc1], XX[loc1, , drop = FALSE])
-#         fit1 <- flexsurv::flexsurvreg(survival::Surv(time, status) ~ ., data = d1, dist = pglink)
-#         out[["pg1"]] <- as.numeric(predict(fit1, newdata = as.data.frame(XX), type = "mean"))
-#       }
-#       if (length(loc0) > 0) {
-#         d0 <- data.frame(time = YY[loc0], status = Event[loc0], XX[loc0, , drop = FALSE])
-#         fit0 <- flexsurv::flexsurvreg(survival::Surv(time, status) ~ ., data = d0, dist = pglink)
-#         out[["pg0"]] <- as.numeric(predict(fit0, newdata = as.data.frame(XX), type = "mean"))
-#       }
-#     }
-#
-#     if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-#   } else {
-#     stop("Unsupported combination of flags (censmod/doublepg/superLearn).", call. = FALSE)
-#   }
-#
-#   out
-# }
-
-
 ComputeScores <- function(data, id, Y, event, X, A,
                           Xtrt = NULL,
                           doublepg = TRUE,
                           outer_CV = 5,
                           inner_CV = NULL,
-                          stratifyCV = FALSE,
-                          cores = 5, tau = NULL,
+                          stratifyCV = TRUE,
+                          cores = 5,
+                          tau = NULL,
                           sl.seed = 100,
-                          A.SL.library = c("SL.mean","SL.glm","SL.glmnet","SL.ranger","SL.xgboost"),
-                          Y.SL.library = c("LIB_COXen","LIB_AFTggamma"),
-                          A.method = "method.AUC", Y.method = "auc",
-                          param.tune = NULL, ngrid = 2000,
+                          A.SL.library = c("SL.mean", "SL.glm", "SL.glmnet", "SL.ranger", "SL.xgboost"),
+                          Y.SL.library = c("LIB_COXen", "LIB_AFTggamma"),
+                          A.method = "method.AUC",
+                          Y.method = "auc",
+                          param.tune = NULL,
+                          ngrid = 2000,
                           param.weights.fix = NULL,
                           param.weights.init = NULL,
                           optim.method = "Nelder-Mead",
@@ -368,9 +162,16 @@ ComputeScores <- function(data, id, Y, event, X, A,
                           standardize = FALSE,
                           superLearn = TRUE,
                           pslink = "logit",
-                          pglink = "lognormal") {
+                          pglink = "lognormal",
+                          sl_parallel = c("multicore", "seq")) {
 
-  # ---------- input validation ----------
+  sl_parallel <- match.arg(sl_parallel)
+  model.pg <- match.arg(model.pg, c("cox", "aft"))
+  pslink <- match.arg(pslink, c("logit", "probit"))
+
+  # ------------------------------------------------------------
+  # input validation
+  # ------------------------------------------------------------
   stopifnot(is.data.frame(data))
 
   for (nm in c(id, Y, event, A)) {
@@ -379,57 +180,143 @@ ComputeScores <- function(data, id, Y, event, X, A,
     }
   }
 
-  if (!is.character(X) || length(X) < 1L) {
-    stop("X must be a non-empty character vector.", call. = FALSE)
+  if (!is.character(X)) {
+    stop("X must be a character vector.", call. = FALSE)
   }
-  if (!all(X %in% names(data))) {
+  if (length(X) > 0L && !all(X %in% names(data))) {
     stop("Some X columns not found in data.", call. = FALSE)
   }
-  if (!is.null(Xtrt) && !all(Xtrt %in% names(data))) {
-    stop("Some Xtrt columns not found in data.", call. = FALSE)
+
+  if (!is.null(Xtrt)) {
+    if (!is.character(Xtrt)) {
+      stop("Xtrt must be NULL or a character vector.", call. = FALSE)
+    }
+    if (length(Xtrt) > 0L && !all(Xtrt %in% names(data))) {
+      stop("Some Xtrt columns not found in data.", call. = FALSE)
+    }
   }
 
-  outer_CV <- as.integer(outer_CV)
-  if (outer_CV < 2L) stop("outer_CV must be >= 2.", call. = FALSE)
+  outer_CV <- as.integer(outer_CV)[1]
+  if (!is.finite(outer_CV) || is.na(outer_CV) || outer_CV < 2L) {
+    stop("outer_CV must be an integer >= 2.", call. = FALSE)
+  }
 
-  cores <- as.integer(cores)
-  if (cores < 1L) stop("cores must be >= 1.", call. = FALSE)
+  if (!is.null(inner_CV)) {
+    inner_CV <- as.integer(inner_CV)[1]
+    if (!is.finite(inner_CV) || is.na(inner_CV) || inner_CV < 2L) {
+      stop("inner_CV must be NULL or an integer >= 2.", call. = FALSE)
+    }
+  }
 
-  ngrid <- max(2L, as.integer(ngrid))
+  cores <- as.integer(cores)[1]
+  if (!is.finite(cores) || is.na(cores) || cores < 1L) {
+    stop("cores must be an integer >= 1.", call. = FALSE)
+  }
+
+  ngrid <- as.integer(ngrid)[1]
+  if (!is.finite(ngrid) || is.na(ngrid) || ngrid < 2L) {
+    stop("ngrid must be an integer >= 2.", call. = FALSE)
+  }
+
+  if (!is.null(tau)) {
+    tau <- as.numeric(tau)[1]
+    if (!is.finite(tau) || is.na(tau) || tau <= 0) {
+      stop("tau must be NULL or a positive numeric value.", call. = FALSE)
+    }
+  }
 
   Event <- data[[event]]
   if (is.logical(Event)) Event <- as.integer(Event)
   if (!all(is.na(Event) | Event %in% c(0L, 1L))) {
-    stop("'", event, "' must be coded 0/1 (1=event, 0=censored).", call. = FALSE)
+    stop("'", event, "' must be coded 0/1 with 1=event and 0=censored.", call. = FALSE)
   }
 
   AA <- data[[A]]
   A_bin <- ifelse(is.na(AA), NA_integer_, ifelse(AA == 1, 1L, 0L))
   if (!all(is.na(A_bin) | A_bin %in% c(0L, 1L))) {
-    stop("Treatment variable must be binary or -1/1.", call. = FALSE)
+    stop("Treatment variable must be binary, with treated values coded as 1.", call. = FALSE)
   }
 
-  Id <- data[[id]]
-  YY <- data[[Y]]
-  XX <- data[, X, drop = FALSE]
-  x  <- data.matrix(XX)
+  # ------------------------------------------------------------
+  # dependency guards
+  # ------------------------------------------------------------
+  if (!requireNamespace("survival", quietly = TRUE)) {
+    stop("Package 'survival' is required.", call. = FALSE)
+  }
 
-  xtrt <- if (!is.null(Xtrt)) data.matrix(data[, Xtrt, drop = FALSE]) else x
+  if (superLearn) {
+    if (!requireNamespace("SuperLearner", quietly = TRUE)) {
+      stop("Package 'SuperLearner' is required when superLearn = TRUE.", call. = FALSE)
+    }
+    if (isTRUE(doublepg) && !requireNamespace("survivalSL", quietly = TRUE)) {
+      stop("Package 'survivalSL' is required when superLearn = TRUE and doublepg = TRUE.", call. = FALSE)
+    }
+  } else {
+    if (!requireNamespace("glmnet", quietly = TRUE)) {
+      stop("Package 'glmnet' is required when superLearn = FALSE.", call. = FALSE)
+    }
+    if (model.pg == "aft" && isTRUE(doublepg) && !requireNamespace("flexsurv", quietly = TRUE)) {
+      stop("Package 'flexsurv' is required for model.pg = 'aft'.", call. = FALSE)
+    }
+  }
 
-  loc1 <- which(A_bin == 1L)
-  loc0 <- which(A_bin == 0L)
+  # ------------------------------------------------------------
+  # helpers
+  # ------------------------------------------------------------
+  tick <- function(...) {
+    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic(...)
+  }
+  tock <- function(...) {
+    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
+  }
 
-  out <- data.frame(
-    id     = Id,
-    ps     = NA_real_,
-    pg0    = NA_real_,
-    pg1    = NA_real_,
-    pscens = NA_real_,
-    pgcens = NA_real_
-  )
-  names(out)[1] <- id
+  prep_df <- function(df) {
+    df <- as.data.frame(df)
+    df[] <- lapply(df, function(z) if (is.character(z)) factor(z) else z)
+    df
+  }
 
-  # ---------- helpers ----------
+  mm_full <- function(df) {
+    df <- prep_df(df)
+    if (ncol(df) == 0L) {
+      return(matrix(numeric(0), nrow = nrow(df), ncol = 0L))
+    }
+    stats::model.matrix(~ . - 1, data = df)
+  }
+
+  safe_scale <- function(z) {
+    z <- as.numeric(z)
+    ok <- is.finite(z)
+    if (sum(ok) <= 1L) return(rep(NA_real_, length(z)))
+    sdz <- stats::sd(z[ok])
+    if (is.na(sdz) || sdz == 0) return(rep(NA_real_, length(z)))
+    outz <- rep(NA_real_, length(z))
+    outz[ok] <- as.numeric(scale(z[ok]))
+    outz
+  }
+
+  safe_logit <- function(p, eps = 1e-6) {
+    p <- as.numeric(p)
+    p[p <= 0] <- eps
+    p[p >= 1] <- 1 - eps
+    stats::qlogis(p)
+  }
+
+  const_prob <- function(y, n) {
+    p <- mean(y, na.rm = TRUE)
+    rep(p, n)
+  }
+
+  const_value <- function(x, n) {
+    rep(mean(x, na.rm = TRUE), n)
+  }
+
+  make_time_grid <- function(y, tau, ngrid) {
+    ymax <- if (is.null(tau)) max(y, na.rm = TRUE) else tau
+    if (!is.finite(ymax) || is.na(ymax) || ymax <= 0) ymax <- 1
+    seq(0, ymax, length.out = ngrid)
+  }
+
   normalize_surv_pred <- function(Smat, time_grid, tol = 1e-10) {
     time_grid <- as.numeric(time_grid)
 
@@ -447,29 +334,25 @@ ComputeScores <- function(data, id, Y, event, X, A,
     }
     storage.mode(Smat) <- "double"
 
-    # If returned as times x subjects instead of subjects x times, transpose
     if (ncol(Smat) != length(time_grid) && nrow(Smat) == length(time_grid)) {
       Smat <- t(Smat)
     }
 
-    # If time_grid contains 0 but Smat starts at first positive time, prepend S(0)=1
     if (ncol(Smat) + 1L == length(time_grid) &&
         isTRUE(all.equal(time_grid[1], 0, tolerance = tol))) {
       Smat <- cbind(1, Smat)
     }
 
-    # If Smat includes an initial S(0)=1 column but time_grid does not, prepend 0
     if (ncol(Smat) == length(time_grid) + 1L &&
         all(abs(Smat[, 1] - 1) < 1e-8, na.rm = TRUE)) {
       time_grid <- c(0, time_grid)
     }
 
-    # Final reconciliation: use common aligned support
     if (ncol(Smat) != length(time_grid)) {
       k <- min(ncol(Smat), length(time_grid))
       warning(
         sprintf(
-          "Adjusted survival prediction grid: %d columns in Smat vs %d time points; using first %d aligned points.",
+          "Adjusted survival prediction grid: %d columns in prediction vs %d time points; using first %d aligned points.",
           ncol(Smat), length(time_grid), k
         ),
         call. = FALSE
@@ -478,17 +361,14 @@ ComputeScores <- function(data, id, Y, event, X, A,
       time_grid <- time_grid[seq_len(k)]
     }
 
-    # Sort jointly
     ord <- order(time_grid)
     time_grid <- time_grid[ord]
     Smat <- Smat[, ord, drop = FALSE]
 
-    # Drop duplicated times jointly
     keep <- c(TRUE, diff(time_grid) > tol)
     time_grid <- time_grid[keep]
     Smat <- Smat[, keep, drop = FALSE]
 
-    # Ensure start at t=0 with S(0)=1
     if (time_grid[1] > tol) {
       time_grid <- c(0, time_grid)
       Smat <- cbind(1, Smat)
@@ -497,11 +377,9 @@ ComputeScores <- function(data, id, Y, event, X, A,
       Smat[, 1] <- 1
     }
 
-    # Clamp into [0,1]
     Smat[!is.finite(Smat)] <- NA_real_
     Smat <- pmin(pmax(Smat, 0), 1)
 
-    # Fill internal missings and enforce monotone non-increasing survival
     Smat <- t(apply(Smat, 1, function(z) {
       if (all(is.na(z))) return(rep(NA_real_, length(z)))
       idx <- which(!is.na(z))
@@ -530,7 +408,10 @@ ComputeScores <- function(data, id, Y, event, X, A,
   }
 
   predict_survival_mean <- function(fit, newdata, newtimes) {
-    pred <- predict(fit, newdata = newdata, newtimes = newtimes)
+    pred <- tag_error(
+      predict(fit, newdata = newdata, newtimes = newtimes),
+      "ComputeScores: predict survivalSL"
+    )
 
     if (is.null(pred$predictions) || is.null(pred$predictions$sl) || is.null(pred$times)) {
       stop(
@@ -542,409 +423,730 @@ ComputeScores <- function(data, id, Y, event, X, A,
     pred_mean(pred$predictions$sl, pred$times)
   }
 
-  parallel_mode <- if (cores > 1L && .Platform$OS.type != "windows") "multicore" else "seq"
+  sl_parallel_resolved <- if (sl_parallel == "multicore" && .Platform$OS.type == "windows") {
+    "seq"
+  } else {
+    sl_parallel
+  }
 
-  # ---------- dependency guards ----------
+  old_mc_cores <- getOption("mc.cores")
+  on.exit(options(mc.cores = old_mc_cores), add = TRUE)
+  options(mc.cores = max(1L, cores))
+
+  # ------------------------------------------------------------
+  # construct data objects
+  # ------------------------------------------------------------
+  X <- unique(setdiff(X, A))
+  XX <- prep_df(data[, X, drop = FALSE])
+  XXtrt <- if (!is.null(Xtrt)) prep_df(data[, Xtrt, drop = FALSE]) else XX
+  Xcens <- unique(c(X, A))
+  XXcens <- prep_df(data[, Xcens, drop = FALSE])
+
+  y <- A_bin
+  YY <- data[[Y]]
+  Id <- data[[id]]
+
+  loc1 <- which(A_bin == 1L)
+  loc0 <- which(A_bin == 0L)
+
+  out <- data.frame(
+    tmp_id     = Id,
+    ps         = NA_real_,
+    pg0        = NA_real_,
+    pg1        = NA_real_,
+    pscens     = NA_real_,
+    pgcens     = NA_real_,
+    ps_sc      = NA_real_,
+    pg0_sc     = NA_real_,
+    pg1_sc     = NA_real_,
+    pscens_sc  = NA_real_,
+    pgcens_sc  = NA_real_
+  )
+  names(out)[1] <- id
+
+  innerCvControl_value <- if (!is.null(inner_CV)) {
+    rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
+  } else {
+    NULL
+  }
+
+  # ------------------------------------------------------------
+  # 1) Treatment propensity score: ps
+  # ------------------------------------------------------------
   if (superLearn) {
-    if (!requireNamespace("SuperLearner", quietly = TRUE)) {
-      stop("Package 'SuperLearner' is required when superLearn=TRUE.", call. = FALSE)
-    }
-  }
-
-  if (!requireNamespace("survival", quietly = TRUE)) {
-    stop("Package 'survival' is required.", call. = FALSE)
-  }
-
-  if (!superLearn && !requireNamespace("glmnet", quietly = TRUE)) {
-    stop("Package 'glmnet' is required when superLearn=FALSE.", call. = FALSE)
-  }
-
-  if (superLearn && !requireNamespace("survivalSL", quietly = TRUE)) {
-    stop("Package 'survivalSL' is required when superLearn=TRUE.", call. = FALSE)
-  }
-
-  if (!superLearn && model.pg == "aft" && !requireNamespace("flexsurv", quietly = TRUE)) {
-    stop("Package 'flexsurv' is required for model.pg='aft'.", call. = FALSE)
-  }
-
-  # ---------- main branches ----------
-  if (censmod && superLearn) {
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: censoring scores (SL)")
-
-    if (pscens) {
-      innerCvControl_value <- if (!is.null(inner_CV)) {
-        rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
-      } else NULL
-
+    if (ncol(XXtrt) == 0L) {
+      out$ps <- const_prob(y, nrow(data))
+    } else {
+      tick("Treatment PS: CV.SuperLearner")
       set.seed(sl.seed, "L'Ecuyer-CMRG")
-      sl_out <- SuperLearner::CV.SuperLearner(
-        Y = Event,
-        X = as.data.frame(x),
-        family = stats::binomial(link = pslink),
-        method = A.method,
-        SL.library = A.SL.library,
-        cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
-        innerCvControl = innerCvControl_value,
-        parallel = parallel_mode,
-        env = getNamespace("SuperLearner")
-      )
-      out[["pscens"]] <- as.numeric(sl_out$SL.predict)
-    }
-
-    if (pgcens) {
-      uncensored <- data[Event == 1L, c(Y, X, A), drop = FALSE]
-      if (nrow(uncensored) > 0) {
-        set.seed(sl.seed, "L'Ecuyer-CMRG")
-        sl_fit <- SuperLearner::SuperLearner(
-          Y = uncensored[[Y]],
-          X = uncensored[, c(X, A), drop = FALSE],
-          family = stats::gaussian(),
+      sl_ps <- tag_error(
+        SuperLearner::CV.SuperLearner(
+          Y = y,
+          X = XXtrt,
+          family = stats::binomial(link = pslink),
+          method = A.method,
           SL.library = A.SL.library,
           cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
+          innerCvControl = innerCvControl_value,
+          parallel = sl_parallel_resolved,
+          verbose = TRUE,
           env = getNamespace("SuperLearner")
+        ),
+        "ComputeScores: treatment PS CV.SuperLearner"
+      )
+      out$ps <- as.vector(sl_ps$SL.predict)
+      tock()
+      rm(sl_ps)
+      gc()
+    }
+  } else {
+    if (pslink == "logit") {
+      xtrt_mm <- mm_full(XXtrt)
+
+      if (ncol(xtrt_mm) == 0L) {
+        out$ps <- const_prob(y, nrow(data))
+      } else if (ncol(xtrt_mm) > 1L) {
+        cv.fit.ps <- tag_error(
+          glmnet::cv.glmnet(
+            x = xtrt_mm,
+            y = y,
+            family = "binomial",
+            alpha = 1,
+            nfolds = outer_CV,
+            standardize = standardize
+          ),
+          "ComputeScores: treatment PS cv.glmnet"
         )
-        out[["pgcens"]] <- as.numeric(
-          predict(sl_fit, newdata = data[, c(X, A), drop = FALSE])$pred
+        out$ps <- as.vector(
+          stats::predict(cv.fit.ps, newx = xtrt_mm, s = cv.fit.ps$lambda.min, type = "response")
         )
+        rm(cv.fit.ps)
+        gc()
+      } else {
+        df_ps <- data.frame(y = y, x1 = xtrt_mm[, 1])
+        fit_ps <- tag_error(
+          stats::glm(y ~ x1, data = df_ps, family = stats::binomial(link = "logit")),
+          "ComputeScores: treatment PS glm"
+        )
+        out$ps <- as.vector(stats::predict(fit_ps, newdata = df_ps, type = "response"))
+        rm(fit_ps, df_ps)
+        gc()
+      }
+      rm(xtrt_mm)
+      gc()
+    } else {
+      if (ncol(XXtrt) == 0L) {
+        out$ps <- const_prob(y, nrow(data))
+      } else {
+        df_ps <- data.frame(y = y, XXtrt)
+        fit_ps <- tag_error(
+          stats::glm(y ~ ., data = df_ps, family = stats::binomial(link = pslink)),
+          "ComputeScores: treatment PS glm nonlogit"
+        )
+        out$ps <- as.vector(stats::predict(fit_ps, newdata = XXtrt, type = "response"))
+        rm(fit_ps, df_ps)
+        gc()
       }
     }
+  }
 
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-
-  } else if (!censmod && doublepg && superLearn) {
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: treatment PS + pg0/pg1 (SL)")
-
-    innerCvControl_value <- if (!is.null(inner_CV)) {
-      rep(list(list(V = inner_CV, stratifyCV = stratifyCV)), outer_CV)
-    } else NULL
-
-    set.seed(sl.seed, "L'Ecuyer-CMRG")
-    sl_out <- SuperLearner::CV.SuperLearner(
-      Y = A_bin,
-      X = as.data.frame(xtrt),
-      family = stats::binomial(link = pslink),
-      method = A.method,
-      SL.library = A.SL.library,
-      cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
-      innerCvControl = innerCvControl_value,
-      parallel = parallel_mode,
-      env = getNamespace("SuperLearner")
-    )
-    out[["ps"]] <- as.numeric(sl_out$SL.predict)
-
-    X_df <- data[, X, drop = FALSE]
-    tmax <- if (is.null(tau)) max(YY, na.rm = TRUE) else tau
-
-    if (length(loc1) > 0) {
-      survdata1 <- data[loc1, c(Y, event, X), drop = FALSE]
-      f1 <- stats::as.formula(
-        paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+"))
-      )
-      slres1 <- survivalSL::survivalSL(
-        formula = f1,
-        methods = Y.SL.library,
-        metric = Y.method,
-        data = survdata1,
-        cv = outer_CV,
-        param.tune = param.tune,
-        seed = sl.seed,
-        param.weights.fix = param.weights.fix,
-        param.weights.init = param.weights.init,
-        maxit = maxit,
-        penalty = penalty,
-        show_progress = TRUE
-      )
-      grid1 <- seq(0, tmax, length.out = ngrid)
-      out[["pg1"]] <- predict_survival_mean(slres1, newdata = X_df, newtimes = grid1)
-    }
-
-    if (length(loc0) > 0) {
-      survdata0 <- data[loc0, c(Y, event, X), drop = FALSE]
-      f0 <- stats::as.formula(
-        paste0("survival::Surv(", Y, ",", event, ") ~ ", paste(X, collapse = "+"))
-      )
-      slres0 <- survivalSL::survivalSL(
-        formula = f0,
-        methods = Y.SL.library,
-        metric = Y.method,
-        data = survdata0,
-        cv = outer_CV,
-        param.tune = param.tune,
-        seed = sl.seed,
-        param.weights.fix = param.weights.fix,
-        param.weights.init = param.weights.init,
-        maxit = maxit,
-        penalty = penalty,
-        show_progress = TRUE
-      )
-      grid0 <- seq(0, tmax, length.out = ngrid)
-      out[["pg0"]] <- predict_survival_mean(slres0, newdata = X_df, newtimes = grid0)
-    }
-
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-
-  } else if (censmod && !superLearn) {
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: censoring scores (glm/glmnet)")
-
-    if (pscens) {
-      if (ncol(x) > 1L) {
-        cvfit <- glmnet::cv.glmnet(
-          x, Event,
-          family = stats::binomial(link = pslink),
-          nfolds = outer_CV,
-          standardize = standardize
-        )
-        out[["pscens"]] <- as.numeric(
-          predict(cvfit, newx = x, s = "lambda.min", type = "response")
+  # ------------------------------------------------------------
+  # 2) Treatment prognostic scores: pg0, pg1
+  # ------------------------------------------------------------
+  if (isTRUE(doublepg)) {
+    if (superLearn) {
+      surv_formula <- if (length(X) > 0L) {
+        stats::as.formula(
+          paste0("survival::Surv(", Y, ", ", event, ") ~ ", paste(X, collapse = " + "))
         )
       } else {
-        df1 <- data.frame(Event = Event, x = x[, 1])
-        fit <- stats::glm(Event ~ x, data = df1, family = stats::binomial(link = pslink))
-        out[["pscens"]] <- as.numeric(stats::predict(fit, newdata = df1, type = "response"))
+        stats::as.formula(paste0("survival::Surv(", Y, ", ", event, ") ~ 1"))
       }
-    }
 
-    if (pgcens) {
-      Xpg <- data.matrix(data[, c(X, A), drop = FALSE])
-      cvfit <- glmnet::cv.glmnet(
-        Xpg, Event,
-        family = "gaussian",
-        nfolds = outer_CV,
-        standardize = standardize
-      )
-      out[["pgcens"]] <- as.numeric(
-        predict(cvfit, newx = Xpg, s = "lambda.min", type = "response")
-      )
-    }
+      if (length(loc1) > 0L) {
+        survdata1 <- prep_df(data[loc1, c(Y, event, X), drop = FALSE])
+        tick("Treatment PG1: survivalSL")
+        slres1 <- tag_error(
+          survivalSL::survivalSL(
+            formula = surv_formula,
+            methods = Y.SL.library,
+            metric = Y.method,
+            data = survdata1,
+            cv = outer_CV,
+            param.tune = param.tune,
+            seed = sl.seed,
+            param.weights.fix = param.weights.fix,
+            param.weights.init = param.weights.init,
+            maxit = maxit,
+            penalty = penalty,
+            show_progress = TRUE
+          ),
+          "ComputeScores: treatment PG1 survivalSL"
+        )
+        grid1 <- make_time_grid(YY, tau, ngrid)
+        out$pg1 <- predict_survival_mean(slres1, newdata = XX, newtimes = grid1)
+        tock()
+        rm(slres1, survdata1, grid1)
+        gc()
+      }
 
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
+      if (length(loc0) > 0L) {
+        survdata0 <- prep_df(data[loc0, c(Y, event, X), drop = FALSE])
+        tick("Treatment PG0: survivalSL")
+        slres0 <- tag_error(
+          survivalSL::survivalSL(
+            formula = surv_formula,
+            methods = Y.SL.library,
+            metric = Y.method,
+            data = survdata0,
+            cv = outer_CV,
+            param.tune = param.tune,
+            seed = sl.seed,
+            param.weights.fix = param.weights.fix,
+            param.weights.init = param.weights.init,
+            maxit = maxit,
+            penalty = penalty,
+            show_progress = TRUE
+          ),
+          "ComputeScores: treatment PG0 survivalSL"
+        )
+        grid0 <- make_time_grid(YY, tau, ngrid)
+        out$pg0 <- predict_survival_mean(slres0, newdata = XX, newtimes = grid0)
+        tock()
+        rm(slres0, survdata0, grid0)
+        gc()
+      }
 
-  } else if (!censmod && doublepg && !superLearn) {
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic("Scores: treatment PS + pg0/pg1 (glm/glmnet)")
-
-    if (ncol(xtrt) > 1L) {
-      cvfit <- glmnet::cv.glmnet(
-        xtrt, A_bin,
-        family = stats::binomial(link = pslink),
-        nfolds = outer_CV,
-        standardize = standardize
-      )
-      out[["ps"]] <- as.numeric(
-        predict(cvfit, newx = xtrt, s = "lambda.min", type = "response")
-      )
     } else {
-      df1 <- data.frame(A_bin = A_bin, xtrt = xtrt[, 1])
-      fit <- stats::glm(A_bin ~ xtrt, data = df1, family = stats::binomial(link = pslink))
-      out[["ps"]] <- as.numeric(stats::predict(fit, newdata = df1, type = "response"))
-    }
+      if (model.pg == "cox") {
+        x_mm <- mm_full(XX)
 
-    if (model.pg == "cox") {
-      if (length(loc1) > 0) {
-        Y1 <- survival::Surv(YY[loc1], Event[loc1])
-        X1 <- data.matrix(XX[loc1, , drop = FALSE])
-        if (ncol(X1) > 1L) {
-          cv1 <- glmnet::cv.glmnet(
-            X1, Y1,
-            family = "cox",
-            nfolds = outer_CV,
-            standardize = standardize
-          )
-          out[["pg1"]] <- as.numeric(
-            predict(cv1, newx = x, s = "lambda.min", type = "link")
-          )
+        if (length(loc1) > 0L) {
+          if (ncol(x_mm) == 0L) {
+            out$pg1 <- rep(0, nrow(data))
+          } else {
+            Y1 <- survival::Surv(YY[loc1], Event[loc1])
+            X1 <- x_mm[loc1, , drop = FALSE]
+
+            if (ncol(X1) > 1L) {
+              cv.fit1 <- tag_error(
+                glmnet::cv.glmnet(
+                  x = X1,
+                  y = Y1,
+                  family = "cox",
+                  alpha = 1,
+                  nfolds = outer_CV,
+                  standardize = standardize
+                ),
+                "ComputeScores: treatment PG1 cv.glmnet cox"
+              )
+              out$pg1 <- as.vector(
+                stats::predict(cv.fit1, newx = x_mm, s = cv.fit1$lambda.min, type = "link")
+              )
+              rm(cv.fit1)
+              gc()
+            } else {
+              df1 <- data.frame(Y = YY[loc1], event = Event[loc1], x1 = X1[, 1])
+              fit1 <- tag_error(
+                survival::coxph(survival::Surv(Y, event) ~ x1, data = df1),
+                "ComputeScores: treatment PG1 coxph"
+              )
+              out$pg1 <- as.vector(
+                stats::predict(fit1, newdata = data.frame(x1 = x_mm[, 1]), type = "lp")
+              )
+              rm(df1, fit1)
+              gc()
+            }
+          }
+        }
+
+        if (length(loc0) > 0L) {
+          if (ncol(x_mm) == 0L) {
+            out$pg0 <- rep(0, nrow(data))
+          } else {
+            Y0 <- survival::Surv(YY[loc0], Event[loc0])
+            X0 <- x_mm[loc0, , drop = FALSE]
+
+            if (ncol(X0) > 1L) {
+              cv.fit0 <- tag_error(
+                glmnet::cv.glmnet(
+                  x = X0,
+                  y = Y0,
+                  family = "cox",
+                  alpha = 1,
+                  nfolds = outer_CV,
+                  standardize = standardize
+                ),
+                "ComputeScores: treatment PG0 cv.glmnet cox"
+              )
+              out$pg0 <- as.vector(
+                stats::predict(cv.fit0, newx = x_mm, s = cv.fit0$lambda.min, type = "link")
+              )
+              rm(cv.fit0)
+              gc()
+            } else {
+              df0 <- data.frame(Y = YY[loc0], event = Event[loc0], x1 = X0[, 1])
+              fit0 <- tag_error(
+                survival::coxph(survival::Surv(Y, event) ~ x1, data = df0),
+                "ComputeScores: treatment PG0 coxph"
+              )
+              out$pg0 <- as.vector(
+                stats::predict(fit0, newdata = data.frame(x1 = x_mm[, 1]), type = "lp")
+              )
+              rm(df0, fit0)
+              gc()
+            }
+          }
+        }
+
+        rm(x_mm)
+        gc()
+
+      } else if (model.pg == "aft") {
+        form_aft <- if (length(X) > 0L) {
+          survival::Surv(Y, event) ~ .
         } else {
-          dfc <- data.frame(time = YY[loc1], status = Event[loc1], x1 = X1[, 1])
-          fit <- survival::coxph(survival::Surv(time, status) ~ x1, data = dfc)
-          out[["pg1"]] <- as.numeric(
-            stats::predict(fit, newdata = data.frame(x1 = x[, 1]), type = "lp")
+          survival::Surv(Y, event) ~ 1
+        }
+
+        if (length(loc1) > 0L) {
+          data1 <- data.frame(Y = YY[loc1], event = Event[loc1], XX[loc1, , drop = FALSE])
+          fit1 <- tag_error(
+            flexsurv::flexsurvreg(
+              form_aft,
+              data = data1,
+              dist = pglink
+            ),
+            "ComputeScores: treatment PG1 flexsurvreg"
           )
+          out$pg1 <- as.numeric(stats::predict(fit1, newdata = XX, type = "mean"))
+          rm(data1, fit1)
+          gc()
+        }
+
+        if (length(loc0) > 0L) {
+          data0 <- data.frame(Y = YY[loc0], event = Event[loc0], XX[loc0, , drop = FALSE])
+          fit0 <- tag_error(
+            flexsurv::flexsurvreg(
+              form_aft,
+              data = data0,
+              dist = pglink
+            ),
+            "ComputeScores: treatment PG0 flexsurvreg"
+          )
+          out$pg0 <- as.numeric(stats::predict(fit0, newdata = XX, type = "mean"))
+          rm(data0, fit0)
+          gc()
         }
       }
-
-      if (length(loc0) > 0) {
-        Y0 <- survival::Surv(YY[loc0], Event[loc0])
-        X0 <- data.matrix(XX[loc0, , drop = FALSE])
-        if (ncol(X0) > 1L) {
-          cv0 <- glmnet::cv.glmnet(
-            X0, Y0,
-            family = "cox",
-            nfolds = outer_CV,
-            standardize = standardize
-          )
-          out[["pg0"]] <- as.numeric(
-            predict(cv0, newx = x, s = "lambda.min", type = "link")
-          )
-        } else {
-          dfc <- data.frame(time = YY[loc0], status = Event[loc0], x0 = X0[, 1])
-          fit <- survival::coxph(survival::Surv(time, status) ~ x0, data = dfc)
-          out[["pg0"]] <- as.numeric(
-            stats::predict(fit, newdata = data.frame(x0 = x[, 1]), type = "lp")
-          )
-        }
-      }
-
-    } else if (model.pg == "aft") {
-      if (length(loc1) > 0) {
-        d1 <- data.frame(time = YY[loc1], status = Event[loc1], XX[loc1, , drop = FALSE])
-        fit1 <- flexsurv::flexsurvreg(
-          survival::Surv(time, status) ~ .,
-          data = d1,
-          dist = pglink
-        )
-        out[["pg1"]] <- as.numeric(
-          predict(fit1, newdata = as.data.frame(XX), type = "mean")
-        )
-      }
-
-      if (length(loc0) > 0) {
-        d0 <- data.frame(time = YY[loc0], status = Event[loc0], XX[loc0, , drop = FALSE])
-        fit0 <- flexsurv::flexsurvreg(
-          survival::Surv(time, status) ~ .,
-          data = d0,
-          dist = pglink
-        )
-        out[["pg0"]] <- as.numeric(
-          predict(fit0, newdata = as.data.frame(XX), type = "mean")
-        )
-      }
     }
-
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-
-  } else {
-    stop("Unsupported combination of flags (censmod/doublepg/superLearn).", call. = FALSE)
   }
+
+  # ------------------------------------------------------------
+  # 3) Censoring-related scores using c(X, A)
+  # ------------------------------------------------------------
+  if (isTRUE(censmod) && (isTRUE(pscens) || isTRUE(pgcens))) {
+
+    if (isTRUE(pscens)) {
+      if (superLearn) {
+        if (ncol(XXcens) == 0L) {
+          out$pscens <- const_prob(Event, nrow(data))
+        } else {
+          tick("Censoring PS: CV.SuperLearner")
+          set.seed(sl.seed, "L'Ecuyer-CMRG")
+          sl_cens <- tag_error(
+            SuperLearner::CV.SuperLearner(
+              Y = Event,
+              X = XXcens,
+              family = stats::binomial(link = pslink),
+              method = A.method,
+              SL.library = A.SL.library,
+              cvControl = list(V = outer_CV, stratifyCV = stratifyCV),
+              innerCvControl = innerCvControl_value,
+              parallel = sl_parallel_resolved,
+              verbose = TRUE,
+              env = getNamespace("SuperLearner")
+            ),
+            "ComputeScores: censoring PS CV.SuperLearner"
+          )
+          out$pscens <- as.vector(sl_cens$SL.predict)
+          tock()
+          rm(sl_cens)
+          gc()
+        }
+      } else {
+        if (pslink == "logit") {
+          x_mm_cens <- mm_full(XXcens)
+
+          if (ncol(x_mm_cens) == 0L) {
+            out$pscens <- const_prob(Event, nrow(data))
+          } else if (ncol(x_mm_cens) > 1L) {
+            cv.fit.cens <- tag_error(
+              glmnet::cv.glmnet(
+                x = x_mm_cens,
+                y = Event,
+                family = "binomial",
+                alpha = 1,
+                nfolds = outer_CV,
+                standardize = standardize
+              ),
+              "ComputeScores: censoring PS cv.glmnet"
+            )
+            out$pscens <- as.vector(
+              stats::predict(cv.fit.cens, newx = x_mm_cens, s = cv.fit.cens$lambda.min, type = "response")
+            )
+            rm(cv.fit.cens)
+            gc()
+          } else {
+            df_cens <- data.frame(Event = Event, x1 = x_mm_cens[, 1])
+            fit_cens <- tag_error(
+              stats::glm(Event ~ x1, data = df_cens, family = stats::binomial(link = "logit")),
+              "ComputeScores: censoring PS glm"
+            )
+            out$pscens <- as.vector(stats::predict(fit_cens, newdata = df_cens, type = "response"))
+            rm(fit_cens, df_cens)
+            gc()
+          }
+          rm(x_mm_cens)
+          gc()
+        } else {
+          if (ncol(XXcens) == 0L) {
+            out$pscens <- const_prob(Event, nrow(data))
+          } else {
+            df_cens <- data.frame(Event = Event, XXcens)
+            fit_cens <- tag_error(
+              stats::glm(Event ~ ., data = df_cens, family = stats::binomial(link = pslink)),
+              "ComputeScores: censoring PS glm nonlogit"
+            )
+            out$pscens <- as.vector(stats::predict(fit_cens, newdata = XXcens, type = "response"))
+            rm(fit_cens, df_cens)
+            gc()
+          }
+        }
+      }
+    }
+
+    if (isTRUE(pgcens)) {
+      unc_idx <- which(Event == 1L)
+
+      if (length(unc_idx) > 0L) {
+        if (superLearn) {
+          if (ncol(XXcens) == 0L) {
+            out$pgcens <- const_value(YY[unc_idx], nrow(data))
+          } else {
+            tick("Censoring PG: SuperLearner")
+            set.seed(sl.seed, "L'Ecuyer-CMRG")
+            sl_pgcens <- tag_error(
+              SuperLearner::SuperLearner(
+                Y = YY[unc_idx],
+                X = XXcens[unc_idx, , drop = FALSE],
+                family = stats::gaussian(),
+                SL.library = A.SL.library,
+                cvControl = list(V = outer_CV, stratifyCV = FALSE),
+                verbose = TRUE,
+                env = getNamespace("SuperLearner")
+              ),
+              "ComputeScores: censoring PG SuperLearner"
+            )
+            out$pgcens <- as.vector(
+              stats::predict(sl_pgcens, newdata = XXcens)$pred
+            )
+            tock()
+            rm(sl_pgcens)
+            gc()
+          }
+        } else {
+          XA_mm <- mm_full(XXcens)
+
+          if (ncol(XA_mm) == 0L) {
+            out$pgcens <- const_value(YY[unc_idx], nrow(data))
+          } else if (ncol(XA_mm) > 1L) {
+            cv.fit.pg <- tag_error(
+              glmnet::cv.glmnet(
+                x = XA_mm[unc_idx, , drop = FALSE],
+                y = YY[unc_idx],
+                family = "gaussian",
+                alpha = 1,
+                nfolds = outer_CV,
+                standardize = standardize
+              ),
+              "ComputeScores: censoring PG cv.glmnet"
+            )
+            out$pgcens <- as.vector(
+              stats::predict(cv.fit.pg, newx = XA_mm, s = cv.fit.pg$lambda.min, type = "response")
+            )
+            rm(cv.fit.pg)
+            gc()
+          } else {
+            df_pg <- data.frame(Y = YY[unc_idx], x1 = XA_mm[unc_idx, 1])
+            fit_pg <- tag_error(
+              stats::lm(Y ~ x1, data = df_pg),
+              "ComputeScores: censoring PG lm"
+            )
+            out$pgcens <- as.vector(
+              stats::predict(fit_pg, newdata = data.frame(x1 = XA_mm[, 1]))
+            )
+            rm(fit_pg, df_pg)
+            gc()
+          }
+          rm(XA_mm)
+          gc()
+        }
+      }
+    }
+  }
+
+  # ------------------------------------------------------------
+  # 4) Scaled versions
+  # ------------------------------------------------------------
+  out$ps_sc     <- safe_scale(safe_logit(out$ps))
+  out$pg0_sc    <- safe_scale(out$pg0)
+  out$pg1_sc    <- safe_scale(out$pg1)
+  out$pscens_sc <- safe_scale(safe_logit(out$pscens))
+  out$pgcens_sc <- safe_scale(out$pgcens)
 
   out
 }
 
-#' Compute stage-specific treatment propensity and prognostic “double scores”
+#' Compute stage-specific treatment, prognostic, and optional censoring scores
 #'
 #' @description
-#' Computes and attaches stage-specific \emph{double scores} for a two-stage treatment setting.
-#' The function is a thin orchestrator around \code{\link{ComputeScores}} that:
-#' (i) restricts to stage-2 entrants (\code{eta2==1}) to compute stage-2 scores using \code{A2} and
-#' \code{Y2}, then (ii) computes stage-1 scores on the full cohort using \code{A1} and either \code{OY}
-#' (overall outcome) or \code{Y1} (stage-1 time) depending on \code{adjustdelta1}.
+#' Computes and attaches stage-specific score summaries for a two-stage treatment setting
+#' by calling \code{\link{ComputeScores}} separately at stage 2 and stage 1.
 #'
-#' The output is the original dataset augmented with both \emph{raw} score columns (propensities and
-#' prognostic scores) and \emph{standardized} score columns intended for distance-based matching or
-#' downstream modeling.
+#' The function is a wrapper that:
+#' \enumerate{
+#'   \item restricts to subjects with \code{eta2 == 1} and computes stage-2 scores using
+#'   \code{Y2.var}, \code{A2.var}, \code{names.var2}, and \code{Xtrt2};
+#'   \item computes stage-1 scores on the full cohort using either \code{OY.var} or
+#'   \code{Y1.var} depending on \code{adjustdelta1}, together with \code{A1.var},
+#'   \code{names.var1}, and \code{Xtrt1};
+#'   \item renames the outputs from \code{ComputeScores()} into stage-specific columns
+#'   and merges them back into the original dataset by subject ID.
+#' }
 #'
 #' @details
-#' \strong{What is computed.}
+#' \strong{Scores returned by \code{ComputeScores()}.}
+#'
+#' For each call, \code{ComputeScores()} returns a fixed set of score columns:
 #' \itemize{
-#'   \item A treatment propensity score \code{ps = P(A=1|Xtrt)} for each stage.
-#'   \item A prognostic score for each stage based on survival modeling.
+#'   \item \code{ps}: treatment propensity score,
+#'   \item \code{pg0}, \code{pg1}: treatment-specific prognostic scores,
+#'   \item \code{pscens}: censoring propensity score,
+#'   \item \code{pgcens}: censoring prognostic score,
+#'   \item \code{ps_sc}, \code{pg0_sc}, \code{pg1_sc}, \code{pscens_sc}, \code{pgcens_sc}:
+#'   scaled versions of the corresponding raw scores.
 #' }
 #'
-#' If \code{doublepg=TRUE}, prognostic scores are computed separately under each treatment level:
-#' \code{pg0} (under \code{A=0}) and \code{pg1} (under \code{A=1}). If \code{doublepg=FALSE}, a single
-#' prognostic score \code{pg} is computed.
+#' This wrapper renames those outputs to stage-specific names and attaches them to
+#' \code{data}. For stage 1, the suffix \code{1} is used; for stage 2, the suffix
+#' \code{2} is used.
 #'
-#' \strong{Stage 2.} Subjects are subset to \code{eta2==1} and \code{ComputeScores()} is called with
-#' \code{Y=Y2.var}, \code{A=A2.var}, covariates \code{names.var2} (prognostic model) and \code{Xtrt2}
-#' (treatment model). Stage-2 results are merged back to the full dataset; non-entrants receive \code{NA}
-#' for stage-2 scores.
+#' \strong{Stage 2.}
 #'
-#' \strong{Stage 1.} \code{ComputeScores()} is called on the full cohort with \code{A=A1.var} and either:
+#' Stage-2 scores are computed only among subjects satisfying \code{data[[eta2.var]] == 1}.
+#' These scores are then merged back into the full dataset. Subjects who do not enter
+#' stage 2 receive \code{NA} for all stage-2 score columns.
+#'
+#' \strong{Stage 1.}
+#'
+#' Stage-1 scores are computed on the full dataset. By default, the stage-1 scoring call
+#' uses \code{Y = OY.var} and \code{event = delta.var}. If \code{adjustdelta1 = TRUE},
+#' the function instead uses \code{Y = Y1.var} and a modified event indicator
+#' \code{deltaadj}, where \code{deltaadj} is initialized as \code{delta.var} and then set
+#' to 0 for subjects with \code{eta2 == 1} and \code{delta == 1}.
+#'
+#' \strong{Treatment and censoring covariates.}
+#'
+#' The prognostic model covariates are supplied through \code{names.var1} and
+#' \code{names.var2}. The treatment propensity model covariates are supplied separately
+#' through \code{Xtrt1} and \code{Xtrt2}. If \code{Xtrt1} or \code{Xtrt2} is \code{NULL},
+#' then \code{ComputeScores()} uses the corresponding prognostic covariates.
+#'
+#' \strong{Censoring-related scores.}
+#'
+#' If \code{censmod = TRUE}, the wrapper also requests censoring-related scores from
+#' \code{ComputeScores()}. The arguments \code{pscens} and \code{pgcens} determine whether
+#' censoring propensity and censoring prognostic scores are actively estimated. Since
+#' \code{ComputeScores()} returns a fixed output structure, the corresponding columns are
+#' still present in the returned data even when those components are not estimated; in
+#' such cases they are typically \code{NA}.
+#'
+#' \strong{Treatment-specific prognostic scores.}
+#'
+#' If \code{doublepg = TRUE}, the wrapper additionally creates convenience variables
+#' comparing the observed-treatment and opposite-treatment prognostic scores:
 #' \itemize{
-#'   \item \code{Y=OY.var, event=delta.var} if \code{adjustdelta1=FALSE}, or
-#'   \item \code{Y=Y1.var, event='deltaadj'} if \code{adjustdelta1=TRUE}.
+#'   \item \code{pg1ct}, \code{pg1tc} for stage 1,
+#'   \item \code{pg2ct}, \code{pg2tc} for stage 2.
 #' }
-#' When \code{adjustdelta1=TRUE}, \code{deltaadj} is created by copying \code{delta.var} and setting
-#' \code{deltaadj=0} for \code{eta2==1} and \code{delta==1}.
+#' These are constructed from the standardized prognostic scores:
+#' \code{pg01}, \code{pg11}, \code{pg02}, and \code{pg12}.
 #'
-#' \strong{Transformations and standardization.} For each stage, \code{ps} is transformed using
-#' \code{qlogis(ps)} (logit scale) and then all score columns are z-scored using \code{scale()} to produce
-#' standardized columns (e.g., \code{ps1}, \code{pg01}, \code{pg11}).
+#' \strong{No-op behavior.}
 #'
-#' \strong{Convenience contrasts.} When \code{doublepg=TRUE}, the function creates:
+#' If \code{useds = FALSE}, the function returns \code{data} unchanged.
+#'
+#' @param data A \code{data.frame} containing subject identifiers, stage indicators,
+#' outcomes, treatment variables, and covariates required for stage-1 and stage-2 score
+#' estimation.
+#'
+#' @param id.var Character scalar. Name of the subject identifier column.
+#'
+#' @param eta2.var Character scalar. Name of the stage-2 entry indicator column, where
+#' \code{1} denotes entry into stage 2 and \code{0} denotes no entry.
+#'
+#' @param Y1.var Character scalar. Name of the stage-1 outcome or time variable used when
+#' \code{adjustdelta1 = TRUE}.
+#'
+#' @param Y2.var Character scalar. Name of the stage-2 outcome or time variable.
+#'
+#' @param delta.var Character scalar. Name of the event indicator variable used in the
+#' survival or censoring models.
+#'
+#' @param OY.var Character scalar. Name of the overall outcome or time variable used for
+#' stage-1 scoring when \code{adjustdelta1 = FALSE}.
+#'
+#' @param A1.var Character scalar. Name of the stage-1 treatment indicator variable.
+#'
+#' @param A2.var Character scalar. Name of the stage-2 treatment indicator variable.
+#'
+#' @param names.var1 Character vector. Covariate names used in the stage-1 prognostic
+#' score model.
+#'
+#' @param names.var2 Character vector. Covariate names used in the stage-2 prognostic
+#' score model.
+#'
+#' @param Xtrt1 Character vector or \code{NULL}. Covariate names used in the stage-1
+#' treatment propensity model. If \code{NULL}, \code{ComputeScores()} uses
+#' \code{names.var1}.
+#'
+#' @param Xtrt2 Character vector or \code{NULL}. Covariate names used in the stage-2
+#' treatment propensity model. If \code{NULL}, \code{ComputeScores()} uses
+#' \code{names.var2}.
+#'
+#' @param useds Logical. If \code{TRUE}, compute and merge the stage-specific scores.
+#' If \code{FALSE}, return \code{data} unchanged.
+#'
+#' @param cores Integer. Number of cores passed to \code{ComputeScores()} for model fitting.
+#'
+#' @param tau Optional numeric truncation horizon passed to \code{ComputeScores()} for
+#' restricted mean prediction or time-grid construction.
+#'
+#' @param sl.seed Integer. Random seed passed to \code{ComputeScores()}.
+#'
+#' @param A.SL.library1 Character vector. SuperLearner library for the stage-1 treatment
+#' propensity model.
+#'
+#' @param A.SL.library2 Character vector. SuperLearner library for the stage-2 treatment
+#' propensity model.
+#'
+#' @param Y.SL.library Character vector. Learners used for prognostic survival modeling
+#' inside \code{ComputeScores()}.
+#'
+#' @param A.method Optional character scalar. Performance metric passed to
+#' \code{ComputeScores()} for treatment propensity estimation.
+#'
+#' @param Y.method Optional character scalar. Performance metric passed to
+#' \code{ComputeScores()} for prognostic survival estimation.
+#'
+#' @param param.weights.fix Optional numeric vector. Fixed ensemble weights passed to
+#' \code{ComputeScores()} when supported by the underlying learner.
+#'
+#' @param param.weights.init Optional numeric vector. Initial ensemble weights passed to
+#' \code{ComputeScores()} when supported by the underlying learner.
+#'
+#' @param optim.method Character scalar or \code{NULL}. Optimization method forwarded to
+#' \code{ComputeScores()}.
+#'
+#' @param stratifyCV Logical. Passed to \code{ComputeScores()}. If \code{TRUE},
+#' cross-validation folds are stratified when supported by the underlying fitting
+#' procedure.
+#'
+#' @param maxit Integer. Maximum number of optimization iterations passed to
+#' \code{ComputeScores()}.
+#'
+#' @param penalty1 Optional tuning parameter or penalty value passed to
+#' \code{ComputeScores()} for stage-1 prognostic estimation.
+#'
+#' @param penalty2 Optional tuning parameter or penalty value passed to
+#' \code{ComputeScores()} for stage-2 prognostic estimation.
+#'
+#' @param ngrid Integer. Number of grid points used by \code{ComputeScores()} when
+#' approximating restricted means or evaluating predicted survival curves.
+#'
+#' @param censmod Logical. If \code{TRUE}, request censoring-related scores from
+#' \code{ComputeScores()} in addition to treatment propensity and treatment prognostic
+#' scores.
+#'
+#' @param pscens Logical. If \code{TRUE} and \code{censmod = TRUE}, estimate censoring
+#' propensity scores within \code{ComputeScores()}.
+#'
+#' @param pgcens Logical. If \code{TRUE} and \code{censmod = TRUE}, estimate censoring
+#' prognostic scores within \code{ComputeScores()}.
+#'
+#' @param doublepg Logical. Passed to \code{ComputeScores()}. If \code{TRUE}, estimate
+#' treatment-specific prognostic scores separately by treatment arm. If \code{FALSE},
+#' the returned prognostic components may be partially unestimated and therefore remain
+#' \code{NA}.
+#'
+#' @param param.tune Optional list or tuning object passed to \code{ComputeScores()} for
+#' learner-specific tuning.
+#'
+#' @param adjustdelta1 Logical. If \code{TRUE}, construct an adjusted stage-1 event
+#' indicator \code{deltaadj} and use \code{Y1.var} instead of \code{OY.var} in the
+#' stage-1 scoring call.
+#'
+#' @param plotps Logical. If \code{TRUE}, plot the raw treatment propensity score
+#' distribution at each stage using \code{\link{propensityplot}}, when available.
+#'
+#' @param model.pg Character scalar. Prognostic model type passed to \code{ComputeScores()}.
+#' Currently intended values are \code{"cox"} and \code{"aft"}.
+#'
+#' @param standardize Logical. Passed to \code{ComputeScores()}. If \code{TRUE},
+#' standardize covariates for penalized regression fits when applicable.
+#'
+#' @param superLearn Logical. Passed to \code{ComputeScores()}. If \code{TRUE}, use
+#' SuperLearner-based fitting; otherwise use the parametric or penalized alternatives
+#' implemented there.
+#'
+#' @param pslink Character scalar. Link function for binomial propensity models passed to
+#' \code{ComputeScores()}, typically \code{"logit"} or \code{"probit"}.
+#'
+#' @param pglink Character scalar. Distribution used when \code{model.pg = "aft"} inside
+#' \code{ComputeScores()}, for example \code{"exponential"}, \code{"weibull"},
+#' \code{"lognormal"}, or \code{"loglogistic"}.
+#'
+#' @param sl_parallel Character scalar. Parallel mode passed to \code{ComputeScores()}
+#' for SuperLearner-based fitting. Must be one of \code{"multicore"} or \code{"seq"}.
+#'
+#' @return
+#' A \code{data.frame} equal to \code{data} augmented with stage-specific score columns.
+#' If \code{useds = FALSE}, the original \code{data} is returned unchanged.
+#'
+#' The following columns are attached for stage 1:
 #' \itemize{
-#'   \item \code{pg1ct} / \code{pg1tc}: stage-1 “correct-treatment” and “treatment-contrast” prognostic scores
-#'   \item \code{pg2ct} / \code{pg2tc}: analogous stage-2 versions (for \code{eta2==1})
-#' }
-#' where “correct-treatment” selects \code{pg0} if observed \code{A=0} and \code{pg1} if observed \code{A=1},
-#' and “treatment-contrast” selects the opposite arm’s prognostic score.
-#'
-#' \strong{Switch behavior.} If \code{useds=FALSE}, the function returns \code{data} unchanged (no-op),
-#' which is useful in pipelines where score construction is optional.
-#'
-#' @param data A data.frame containing all required stage-1 and stage-2 variables.
-#' @param id.var Character scalar. Subject identifier column name.
-#' @param eta2.var Character scalar. Stage-2 entry indicator column name (1=entered stage 2, 0=did not).
-#'
-#' @param Y1.var Character scalar. Stage-1 time/outcome component (used only when \code{adjustdelta1=TRUE}).
-#' @param Y2.var Character scalar. Stage-2 outcome/time column used for stage-2 prognostic scoring.
-#' @param delta.var Character scalar. Event indicator column name used for survival modeling.
-#' @param OY.var Character scalar. Overall outcome/time column used for stage-1 prognostic scoring when
-#' \code{adjustdelta1=FALSE}.
-#'
-#' @param A1.var Character scalar. Stage-1 treatment indicator column name.
-#' @param A2.var Character scalar. Stage-2 treatment indicator column name.
-#'
-#' @param names.var1 Character vector. Covariate names for the stage-1 prognostic model.
-#' @param names.var2 Character vector. Covariate names for the stage-2 prognostic model (stage-2 entrants only).
-#'
-#' @param Xtrt1 Character vector. Covariate names for the stage-1 treatment propensity model (if different from
-#' \code{names.var1}).
-#' @param Xtrt2 Character vector. Covariate names for the stage-2 treatment propensity model (if different from
-#' \code{names.var2}).
-#'
-#' @param useds Logical. If TRUE, compute and merge scores. If FALSE, return \code{data} unchanged.
-#'
-#' @param cores Integer. Number of cores passed to \code{ComputeScores} (if supported by the backend).
-#' @param tau Optional numeric. Truncation horizon used in prognostic mean calculations inside \code{ComputeScores}.
-#' @param sl.seed Integer. RNG seed passed to \code{ComputeScores}.
-#'
-#' @param A.SL.library1,A.SL.library2 Character vectors. SuperLearner libraries for stage-1 and stage-2 treatment models.
-#' @param Y.SL.library Character vector. Learners for survivalSL prognostic modeling.
-#' @param A.method,Y.method Optional. Scoring metrics passed to \code{ComputeScores}.
-#'
-#' @param param.weights.fix,param.weights.init,optim.method,maxit,penalty1,penalty2,param.tune
-#' Tuning/optimization controls forwarded to \code{ComputeScores}.
-#'
-#' @param ngrid Integer. Number of grid points used when integrating survival curves for mean survival time.
-#'
-#' @param censmod Logical. Included for interface consistency; in this wrapper the calls to \code{ComputeScores}
-#' set \code{censmod=FALSE} to compute treatment/prognostic (not censoring) scores.
-#'
-#' @param doublepg Logical. If TRUE, compute \code{pg0} and \code{pg1}. If FALSE, compute a single \code{pg}.
-#'
-#' @param adjustdelta1 Logical. If TRUE, define \code{deltaadj} and use \code{Y1.var} as the time variable
-#' for stage-1 scoring; otherwise use \code{OY.var} and \code{delta.var}.
-#'
-#' @param plotps Logical. If TRUE, plots propensity distributions by treatment at each stage using \code{propensityplot()}.
-#'
-#' @param model.pg Character. Prognostic model family used when \code{superLearn=FALSE} ("cox" or "aft").
-#' @param standardize Logical. Whether to standardize covariates for glmnet when \code{superLearn=FALSE}.
-#' @param superLearn Logical. If TRUE, use SuperLearner-based estimation inside \code{ComputeScores}; otherwise use glm/glmnet.
-#' @param pslink Character. Link for binomial treatment propensity model ("logit" or "probit").
-#' @param pglink Character. AFT distribution used when \code{model.pg="aft"} (passed to \code{ComputeScores}).
-#'
-#' @return A data.frame equal to \code{data} augmented with score columns. If \code{useds=FALSE},
-#' returns \code{data} unchanged.
-#'
-#' \strong{Raw score columns} (merged back by \code{id.var}):
-#' \itemize{
-#'   \item Stage 1: \code{prog01, prog11, prop1} (or \code{prog01, prop1} if \code{doublepg=FALSE})
-#'   \item Stage 2: \code{prog02, prog12, prop2} (or \code{prog02, prop2} if \code{doublepg=FALSE}; \code{NA} for \code{eta2==0})
+#'   \item \code{probps1}: raw treatment propensity score,
+#'   \item \code{prog01}, \code{prog11}: raw treatment-specific prognostic scores,
+#'   \item \code{probcens1}: raw censoring propensity score,
+#'   \item \code{progcens1}: raw censoring prognostic score,
+#'   \item \code{ps1}, \code{pg01}, \code{pg11}, \code{pscens1}, \code{pgcens1}:
+#'   scaled versions of the above scores.
 #' }
 #'
-#' \strong{Standardized columns} (z-scored; propensity on logit scale):
-#' \itemize{
-#'   \item Stage 1: \code{pg01, pg11, ps1} (or \code{pg01, ps1})
-#'   \item Stage 2: \code{pg02, pg12, ps2} (or \code{pg02, ps2})
-#' }
+#' The analogous columns
+#' \code{probps2}, \code{prog02}, \code{prog12}, \code{probcens2}, \code{progcens2},
+#' \code{ps2}, \code{pg02}, \code{pg12}, \code{pscens2}, and \code{pgcens2} are attached
+#' for stage 2. Subjects with \code{eta2 == 0} receive \code{NA} for all stage-2 score
+#' columns.
 #'
-#' When \code{doublepg=TRUE}, additional convenience columns are created:
-#' \itemize{
-#'   \item Stage 1: \code{pg1ct}, \code{pg1tc}
-#'   \item Stage 2: \code{pg2ct}, \code{pg2tc}
-#' }
+#' If \code{doublepg = TRUE}, the convenience columns \code{pg1ct}, \code{pg1tc},
+#' \code{pg2ct}, and \code{pg2tc} are also added.
 #'
 #' @seealso \code{\link{ComputeScores}}, \code{\link{propensityplot}}
 #' @export
+
+
 get_doublescores <- function(
     data,
     id.var, eta2.var,
@@ -952,8 +1154,8 @@ get_doublescores <- function(
     delta.var, OY.var,
     A1.var, A2.var,
     names.var1, names.var2,
-    Xtrt1,
-    Xtrt2,
+    Xtrt1 = NULL,
+    Xtrt2 = NULL,
     useds         = FALSE,
     cores         = 1,
     tau,
@@ -966,66 +1168,161 @@ get_doublescores <- function(
     param.weights.fix   = NULL,
     param.weights.init  = NULL,
     optim.method        = NULL,
+    stratifyCV    = TRUE,
     maxit         = 1000,
     penalty1      = NULL,
     penalty2      = NULL,
     ngrid         = 50,
     censmod       = TRUE,
+    pscens        = TRUE,
+    pgcens        = TRUE,
     doublepg      = TRUE,
     param.tune    = NULL,
     adjustdelta1  = FALSE,
     plotps        = FALSE,
-    model.pg      = "cox",      # "cox" or "aft"
-    standardize   = FALSE,      # Standardize covariates for glmnet
-    superLearn    = TRUE,       # Whether to use SuperLearner or glmnet
-    pslink        = "logit",    # "logit" or "probit"
-    pglink        = NULL        # e.g., "lognormal" when model.pg == "aft"
+    model.pg      = "cox",
+    standardize   = FALSE,
+    superLearn    = TRUE,
+    pslink        = "logit",
+    pglink        = "lognormal",
+    sl_parallel   = c("multicore", "seq")
 ) {
+
+  sl_parallel <- match.arg(sl_parallel)
+
   stopifnot(is.data.frame(data))
 
-  # basic column checks
-  req_cols <- c(id.var, eta2.var, Y1.var, Y2.var, delta.var, OY.var, A1.var, A2.var)
+  if (!isTRUE(useds)) return(data)
+
+  if (!exists("ComputeScores", mode = "function")) {
+    stop("ComputeScores() not found in the current environment.", call. = FALSE)
+  }
+
+  req_cols <- unique(c(
+    id.var, eta2.var, Y1.var, Y2.var, delta.var, OY.var, A1.var, A2.var,
+    names.var1, names.var2, Xtrt1, Xtrt2
+  ))
+  req_cols <- req_cols[!is.na(req_cols) & nzchar(req_cols)]
+
   miss <- setdiff(req_cols, names(data))
   if (length(miss) > 0L) {
     stop("Missing required columns in data: ", paste(miss, collapse = ", "), call. = FALSE)
   }
-  if (!all(names.var1 %in% names(data))) stop("Some names.var1 not found in data.", call. = FALSE)
-  if (!all(names.var2 %in% names(data))) stop("Some names.var2 not found in data.", call. = FALSE)
-  if (!all(Xtrt1 %in% names(data)))      stop("Some Xtrt1 not found in data.", call. = FALSE)
-  if (!all(Xtrt2 %in% names(data)))      stop("Some Xtrt2 not found in data.", call. = FALSE)
 
-  if (!useds) return(data)
-
-  if (!exists("ComputeScores", mode = "function")) {
-    stop("ComputeScores() not found. It must be available in your package/environment.", call. = FALSE)
+  # ------------------------------------------------------------
+  # helpers
+  # ------------------------------------------------------------
+  tick <- function(...) {
+    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic(...)
+  }
+  tock <- function(...) {
+    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
   }
 
-  # optional timing (no hard dependency)
-  tick <- function(...) if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic(...)
-  tock <- function(...) if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-
-  # safe logit to avoid +/-Inf when ps=0/1
-  safe_qlogis <- function(p, eps = 1e-6) {
-    p <- as.numeric(p)
-    p <- pmax(pmin(p, 1 - eps), eps)
-    stats::qlogis(p)
+  expected_cs_names <- function(id.var) {
+    c(
+      id.var,
+      "ps", "pg0", "pg1", "pscens", "pgcens",
+      "ps_sc", "pg0_sc", "pg1_sc", "pscens_sc", "pgcens_sc"
+    )
   }
 
+  rename_stage_scores <- function(ds, id.var, stage = c("1", "2")) {
+    stage <- match.arg(stage)
+    ds <- as.data.frame(ds)
+
+    if (!id.var %in% names(ds)) {
+      names(ds)[1] <- id.var
+    }
+
+    want <- expected_cs_names(id.var)
+    if (!identical(names(ds), want)) {
+      if (ncol(ds) != length(want)) {
+        stop(
+          "ComputeScores output has ", ncol(ds), " columns, but ",
+          length(want), " were expected.",
+          call. = FALSE
+        )
+      }
+      names(ds) <- want
+    }
+
+    names(ds) <- c(
+      id.var,
+      paste0("probps",  stage),
+      paste0("prog0",   stage),
+      paste0("prog1",   stage),
+      paste0("probcens",stage),
+      paste0("progcens",stage),
+      paste0("ps",      stage),
+      paste0("pg0",     stage),
+      paste0("pg1",     stage),
+      paste0("pscens",  stage),
+      paste0("pgcens",  stage)
+    )
+
+    ds
+  }
+
+  attach_by_id <- function(df, add, id.var) {
+    add <- as.data.frame(add)
+
+    if (anyDuplicated(add[[id.var]]) > 0L) {
+      stop("Duplicated IDs found in score output for ", id.var, ".", call. = FALSE)
+    }
+
+    idx <- match(df[[id.var]], add[[id.var]])
+    add_cols <- setdiff(names(add), id.var)
+
+    for (nm in add_cols) {
+      df[[nm]] <- add[[nm]][idx]
+    }
+
+    df
+  }
+
+  add_empty_stage_cols <- function(df, stage = c("1", "2")) {
+    stage <- match.arg(stage)
+    nm <- c(
+      paste0("probps",  stage),
+      paste0("prog0",   stage),
+      paste0("prog1",   stage),
+      paste0("probcens",stage),
+      paste0("progcens",stage),
+      paste0("ps",      stage),
+      paste0("pg0",     stage),
+      paste0("pg1",     stage),
+      paste0("pscens",  stage),
+      paste0("pgcens",  stage)
+    )
+    for (x in nm) df[[x]] <- NA_real_
+    df
+  }
+
+  maybe_plot_ps <- function(dat, ps_col, A_col) {
+    if (isTRUE(plotps) && exists("propensityplot", mode = "function")) {
+      print(propensityplot(ps = dat[[ps_col]], A = dat[[A_col]]))
+    }
+  }
+
+  # ------------------------------------------------------------
+  # working copy
+  # ------------------------------------------------------------
   df <- data
 
-  # optional delta adjustment for stage-1 scoring
-  if (adjustdelta1) {
+  # optional delta adjustment for stage 1
+  if (isTRUE(adjustdelta1)) {
     df$deltaadj <- df[[delta.var]]
     df$deltaadj[df[[eta2.var]] == 1 & df[[delta.var]] == 1] <- 0
   }
 
-  # -------------------------
-  # Stage 2: stage-2 entrants
-  # -------------------------
+  # ------------------------------------------------------------
+  # Stage 2
+  # ------------------------------------------------------------
   df2 <- df[df[[eta2.var]] == 1, , drop = FALSE]
 
   if (nrow(df2) > 0L) {
-    tick("Stage 2 DoubleScore")
+    tick("Time to compute stage-2 scores")
 
     ds2 <- ComputeScores(
       data         = df2,
@@ -1033,12 +1330,12 @@ get_doublescores <- function(
       Y            = Y2.var,
       event        = delta.var,
       X            = names.var2,
-      Xtrt         = Xtrt2,
       A            = A2.var,
+      Xtrt         = Xtrt2,
       doublepg     = doublepg,
       outer_CV     = 5,
       inner_CV     = 5,
-      stratifyCV   = FALSE,
+      stratifyCV   = stratifyCV,
       cores        = cores,
       tau          = tau,
       sl.seed      = sl.seed,
@@ -1046,104 +1343,54 @@ get_doublescores <- function(
       Y.SL.library = Y.SL.library,
       A.method     = A.method,
       Y.method     = Y.method,
+      param.tune   = param.tune,
+      ngrid        = ngrid,
       param.weights.fix  = param.weights.fix,
       param.weights.init = param.weights.init,
       optim.method = optim.method,
-      maxit        = maxit,
       penalty      = penalty2,
-      ngrid        = ngrid,
-      pscens       = FALSE,
-      pgcens       = FALSE,
-      censmod      = FALSE,      # treatment score + prognostic score (not censoring)
-      param.tune   = param.tune,
+      pgcens       = pgcens,
+      pscens       = pscens,
+      censmod      = censmod,
+      maxit        = maxit,
       model.pg     = model.pg,
       standardize  = standardize,
       superLearn   = superLearn,
       pslink       = pslink,
-      pglink       = pglink
+      pglink       = pglink,
+      sl_parallel  = sl_parallel
     )
 
     tock()
 
-    ds2 <- as.data.frame(ds2)
-    if (!id.var %in% names(ds2)) names(ds2)[1] <- id.var
+    ds2 <- rename_stage_scores(ds2, id.var = id.var, stage = "2")
+    df  <- attach_by_id(df, ds2, id.var = id.var)
 
-    if (doublepg) {
-      # expected columns: id, pg0, pg1, ps
-      if (!all(c("pg0", "pg1", "ps") %in% names(ds2))) {
-        stop("Stage-2 ComputeScores output must contain pg0, pg1, ps when doublepg=TRUE.", call. = FALSE)
-      }
-      ds2$pg0 <- as.numeric(ds2$pg0)
-      ds2$pg1 <- as.numeric(ds2$pg1)
-      ds2$ps  <- as.numeric(ds2$ps)
+    df2_plot <- df[df[[eta2.var]] == 1, , drop = FALSE]
+    maybe_plot_ps(df2_plot, "probps2", A2.var)
 
-      if (plotps && exists("propensityplot", mode = "function")) {
-        propensityplot(ps = ds2[["ps"]], A = df2[[A2.var]])
-      }
-
-      # logit transform + standardize for matching
-      ds2$ps_logit <- safe_qlogis(ds2$ps)
-      dsp2 <- as.data.frame(scale(ds2[, c("pg0", "pg1", "ps_logit"), drop = FALSE]))
-      colnames(dsp2) <- c("pg02", "pg12", "ps2")
-      dsp2[[id.var]] <- ds2[[id.var]]
-
-      # keep raw (renamed) columns for interpretability
-      ds2_out <- ds2[, c(id.var, "pg0", "pg1", "ps"), drop = FALSE]
-      colnames(ds2_out) <- c(id.var, "prog02", "prog12", "prop2")
-
-      # merge
-      df <- merge(df, ds2_out, by = id.var, all.x = TRUE)
-      df <- merge(df, dsp2,   by = id.var, all.x = TRUE)
-
-      # convenience: correct-treatment vs treatment-contrast prognostic score
-      df$pg2ct <- ifelse(df[[A2.var]] == 1, df$pg12, df$pg02)
-      df$pg2tc <- ifelse(df[[A2.var]] == 1, df$pg02, df$pg12)
-
-    } else {
-      # expected columns: id, pg, ps
-      if (!all(c("pg", "ps") %in% names(ds2))) {
-        stop("Stage-2 ComputeScores output must contain pg, ps when doublepg=FALSE.", call. = FALSE)
-      }
-      ds2$pg <- as.numeric(ds2$pg)
-      ds2$ps <- as.numeric(ds2$ps)
-
-      if (plotps && exists("propensityplot", mode = "function")) {
-        propensityplot(ps = ds2[["ps"]], A = df2[[A2.var]])
-      }
-
-      ds2$ps_logit <- safe_qlogis(ds2$ps)
-      dsp2 <- as.data.frame(scale(ds2[, c("pg", "ps_logit"), drop = FALSE]))
-      colnames(dsp2) <- c("pg02", "ps2")
-      dsp2[[id.var]] <- ds2[[id.var]]
-
-      ds2_out <- ds2[, c(id.var, "pg", "ps"), drop = FALSE]
-      colnames(ds2_out) <- c(id.var, "prog02", "prop2")
-
-      df <- merge(df, ds2_out, by = id.var, all.x = TRUE)
-      df <- merge(df, dsp2,   by = id.var, all.x = TRUE)
-    }
   } else {
-    # no stage-2 entrants; still create empty columns? (leave as-is)
-    message("No stage-2 entrants (eta2==1); skipping stage-2 score computation.")
+    message("No stage-2 entrants (", eta2.var, " == 1); stage-2 score columns set to NA.")
+    df <- add_empty_stage_cols(df, stage = "2")
   }
 
-  # -------------------------
-  # Stage 1: full cohort
-  # -------------------------
-  tick("Stage 1 DoubleScore")
+  # ------------------------------------------------------------
+  # Stage 1
+  # ------------------------------------------------------------
+  tick("Time to compute stage-1 scores")
 
   ds1 <- ComputeScores(
     data         = df,
     id           = id.var,
-    Y            = if (adjustdelta1) Y1.var else OY.var,
-    event        = if (adjustdelta1) "deltaadj" else delta.var,
+    Y            = if (isTRUE(adjustdelta1)) Y1.var else OY.var,
+    event        = if (isTRUE(adjustdelta1)) "deltaadj" else delta.var,
     X            = names.var1,
-    Xtrt         = Xtrt1,
     A            = A1.var,
+    Xtrt         = Xtrt1,
     doublepg     = doublepg,
     outer_CV     = 5,
     inner_CV     = 5,
-    stratifyCV   = FALSE,
+    stratifyCV   = stratifyCV,
     cores        = cores,
     tau          = tau,
     sl.seed      = sl.seed,
@@ -1151,79 +1398,53 @@ get_doublescores <- function(
     Y.SL.library = Y.SL.library,
     A.method     = A.method,
     Y.method     = Y.method,
+    param.tune   = param.tune,
+    ngrid        = ngrid,
     param.weights.fix  = param.weights.fix,
     param.weights.init = param.weights.init,
     optim.method = optim.method,
-    maxit        = maxit,
     penalty      = penalty1,
-    ngrid        = ngrid,
-    pscens       = FALSE,
-    pgcens       = FALSE,
-    censmod      = FALSE,
-    param.tune   = param.tune,
+    pgcens       = pgcens,
+    pscens       = pscens,
+    censmod      = censmod,
+    maxit        = maxit,
     model.pg     = model.pg,
     standardize  = standardize,
     superLearn   = superLearn,
     pslink       = pslink,
-    pglink       = pglink
+    pglink       = pglink,
+    sl_parallel  = sl_parallel
   )
 
   tock()
 
-  ds1 <- as.data.frame(ds1)
-  if (!id.var %in% names(ds1)) names(ds1)[1] <- id.var
+  ds1 <- rename_stage_scores(ds1, id.var = id.var, stage = "1")
+  df  <- attach_by_id(df, ds1, id.var = id.var)
 
-  if (doublepg) {
-    if (!all(c("pg0", "pg1", "ps") %in% names(ds1))) {
-      stop("Stage-1 ComputeScores output must contain pg0, pg1, ps when doublepg=TRUE.", call. = FALSE)
-    }
-    ds1$pg0 <- as.numeric(ds1$pg0)
-    ds1$pg1 <- as.numeric(ds1$pg1)
-    ds1$ps  <- as.numeric(ds1$ps)
+  maybe_plot_ps(df, "probps1", A1.var)
 
-    if (plotps && exists("propensityplot", mode = "function")) {
-      propensityplot(ps = ds1[["ps"]], A = df[[A1.var]])
-    }
-
-    ds1$ps_logit <- safe_qlogis(ds1$ps)
-    dsp1 <- as.data.frame(scale(ds1[, c("pg0", "pg1", "ps_logit"), drop = FALSE]))
-    colnames(dsp1) <- c("pg01", "pg11", "ps1")
-    dsp1[[id.var]] <- ds1[[id.var]]
-
-    ds1_out <- ds1[, c(id.var, "pg0", "pg1", "ps"), drop = FALSE]
-    colnames(ds1_out) <- c(id.var, "prog01", "prog11", "prop1")
-
-    df <- merge(df, ds1_out, by = id.var, all.x = TRUE)
-    df <- merge(df, dsp1,   by = id.var, all.x = TRUE)
-
+  # ------------------------------------------------------------
+  # convenience contrasts from standardized prognostic scores
+  # ------------------------------------------------------------
+  if (isTRUE(doublepg)) {
     df$pg1ct <- ifelse(df[[A1.var]] == 1, df$pg11, df$pg01)
     df$pg1tc <- ifelse(df[[A1.var]] == 1, df$pg01, df$pg11)
 
-  } else {
-    if (!all(c("pg", "ps") %in% names(ds1))) {
-      stop("Stage-1 ComputeScores output must contain pg, ps when doublepg=FALSE.", call. = FALSE)
-    }
-    ds1$pg <- as.numeric(ds1$pg)
-    ds1$ps <- as.numeric(ds1$ps)
-
-    if (plotps && exists("propensityplot", mode = "function")) {
-      propensityplot(ps = ds1[["ps"]], A = df[[A1.var]])
-    }
-
-    ds1$ps_logit <- safe_qlogis(ds1$ps)
-    dsp1 <- as.data.frame(scale(ds1[, c("pg", "ps_logit"), drop = FALSE]))
-    colnames(dsp1) <- c("pg01", "ps1")
-    dsp1[[id.var]] <- ds1[[id.var]]
-
-    ds1_out <- ds1[, c(id.var, "pg", "ps"), drop = FALSE]
-    colnames(ds1_out) <- c(id.var, "prog01", "prop1")
-
-    df <- merge(df, ds1_out, by = id.var, all.x = TRUE)
-    df <- merge(df, dsp1,   by = id.var, all.x = TRUE)
+    df$pg2ct <- ifelse(
+      df[[eta2.var]] == 1,
+      ifelse(df[[A2.var]] == 1, df$pg12, df$pg02),
+      NA_real_
+    )
+    df$pg2tc <- ifelse(
+      df[[eta2.var]] == 1,
+      ifelse(df[[A2.var]] == 1, df$pg02, df$pg12),
+      NA_real_
+    )
   }
 
   df
 }
+
 
 
 #' Plot propensity (or censoring) score overlap by group

@@ -2,7 +2,7 @@
 % Please edit documentation in R/scores.R
 \name{get_doublescores}
 \alias{get_doublescores}
-\title{Compute stage-specific treatment propensity and prognostic “double scores”}
+\title{Compute stage-specific treatment, prognostic, and optional censoring scores}
 \usage{
 get_doublescores(
   data,
@@ -16,8 +16,8 @@ get_doublescores(
   A2.var,
   names.var1,
   names.var2,
-  Xtrt1,
-  Xtrt2,
+  Xtrt1 = NULL,
+  Xtrt2 = NULL,
   useds = FALSE,
   cores = 1,
   tau,
@@ -30,11 +30,14 @@ get_doublescores(
   param.weights.fix = NULL,
   param.weights.init = NULL,
   optim.method = NULL,
+  stratifyCV = TRUE,
   maxit = 1000,
   penalty1 = NULL,
   penalty2 = NULL,
   ngrid = 50,
   censmod = TRUE,
+  pscens = TRUE,
+  pgcens = TRUE,
   doublepg = TRUE,
   param.tune = NULL,
   adjustdelta1 = FALSE,
@@ -43,148 +46,243 @@ get_doublescores(
   standardize = FALSE,
   superLearn = TRUE,
   pslink = "logit",
-  pglink = NULL
+  pglink = "lognormal",
+  sl_parallel = c("multicore", "seq")
 )
 }
 \arguments{
-\item{data}{A data.frame containing all required stage-1 and stage-2 variables.}
+\item{data}{A \code{data.frame} containing subject identifiers, stage indicators,
+outcomes, treatment variables, and covariates required for stage-1 and stage-2 score
+estimation.}
 
-\item{id.var}{Character scalar. Subject identifier column name.}
+\item{id.var}{Character scalar. Name of the subject identifier column.}
 
-\item{eta2.var}{Character scalar. Stage-2 entry indicator column name (1=entered stage 2, 0=did not).}
+\item{eta2.var}{Character scalar. Name of the stage-2 entry indicator column, where
+\code{1} denotes entry into stage 2 and \code{0} denotes no entry.}
 
-\item{Y1.var}{Character scalar. Stage-1 time/outcome component (used only when \code{adjustdelta1=TRUE}).}
+\item{Y1.var}{Character scalar. Name of the stage-1 outcome or time variable used when
+\code{adjustdelta1 = TRUE}.}
 
-\item{Y2.var}{Character scalar. Stage-2 outcome/time column used for stage-2 prognostic scoring.}
+\item{Y2.var}{Character scalar. Name of the stage-2 outcome or time variable.}
 
-\item{delta.var}{Character scalar. Event indicator column name used for survival modeling.}
+\item{delta.var}{Character scalar. Name of the event indicator variable used in the
+survival or censoring models.}
 
-\item{OY.var}{Character scalar. Overall outcome/time column used for stage-1 prognostic scoring when
-\code{adjustdelta1=FALSE}.}
+\item{OY.var}{Character scalar. Name of the overall outcome or time variable used for
+stage-1 scoring when \code{adjustdelta1 = FALSE}.}
 
-\item{A1.var}{Character scalar. Stage-1 treatment indicator column name.}
+\item{A1.var}{Character scalar. Name of the stage-1 treatment indicator variable.}
 
-\item{A2.var}{Character scalar. Stage-2 treatment indicator column name.}
+\item{A2.var}{Character scalar. Name of the stage-2 treatment indicator variable.}
 
-\item{names.var1}{Character vector. Covariate names for the stage-1 prognostic model.}
+\item{names.var1}{Character vector. Covariate names used in the stage-1 prognostic
+score model.}
 
-\item{names.var2}{Character vector. Covariate names for the stage-2 prognostic model (stage-2 entrants only).}
+\item{names.var2}{Character vector. Covariate names used in the stage-2 prognostic
+score model.}
 
-\item{Xtrt1}{Character vector. Covariate names for the stage-1 treatment propensity model (if different from
-\code{names.var1}).}
+\item{Xtrt1}{Character vector or \code{NULL}. Covariate names used in the stage-1
+treatment propensity model. If \code{NULL}, \code{ComputeScores()} uses
+\code{names.var1}.}
 
-\item{Xtrt2}{Character vector. Covariate names for the stage-2 treatment propensity model (if different from
-\code{names.var2}).}
+\item{Xtrt2}{Character vector or \code{NULL}. Covariate names used in the stage-2
+treatment propensity model. If \code{NULL}, \code{ComputeScores()} uses
+\code{names.var2}.}
 
-\item{useds}{Logical. If TRUE, compute and merge scores. If FALSE, return \code{data} unchanged.}
+\item{useds}{Logical. If \code{TRUE}, compute and merge the stage-specific scores.
+If \code{FALSE}, return \code{data} unchanged.}
 
-\item{cores}{Integer. Number of cores passed to \code{ComputeScores} (if supported by the backend).}
+\item{cores}{Integer. Number of cores passed to \code{ComputeScores()} for model fitting.}
 
-\item{tau}{Optional numeric. Truncation horizon used in prognostic mean calculations inside \code{ComputeScores}.}
+\item{tau}{Optional numeric truncation horizon passed to \code{ComputeScores()} for
+restricted mean prediction or time-grid construction.}
 
-\item{sl.seed}{Integer. RNG seed passed to \code{ComputeScores}.}
+\item{sl.seed}{Integer. Random seed passed to \code{ComputeScores()}.}
 
-\item{A.SL.library1, A.SL.library2}{Character vectors. SuperLearner libraries for stage-1 and stage-2 treatment models.}
+\item{A.SL.library1}{Character vector. SuperLearner library for the stage-1 treatment
+propensity model.}
 
-\item{Y.SL.library}{Character vector. Learners for survivalSL prognostic modeling.}
+\item{A.SL.library2}{Character vector. SuperLearner library for the stage-2 treatment
+propensity model.}
 
-\item{A.method, Y.method}{Optional. Scoring metrics passed to \code{ComputeScores}.}
+\item{Y.SL.library}{Character vector. Learners used for prognostic survival modeling
+inside \code{ComputeScores()}.}
 
-\item{param.weights.fix, param.weights.init, optim.method, maxit, penalty1, penalty2, param.tune}{Tuning/optimization controls forwarded to \code{ComputeScores}.}
+\item{A.method}{Optional character scalar. Performance metric passed to
+\code{ComputeScores()} for treatment propensity estimation.}
 
-\item{ngrid}{Integer. Number of grid points used when integrating survival curves for mean survival time.}
+\item{Y.method}{Optional character scalar. Performance metric passed to
+\code{ComputeScores()} for prognostic survival estimation.}
 
-\item{censmod}{Logical. Included for interface consistency; in this wrapper the calls to \code{ComputeScores}
-set \code{censmod=FALSE} to compute treatment/prognostic (not censoring) scores.}
+\item{param.weights.fix}{Optional numeric vector. Fixed ensemble weights passed to
+\code{ComputeScores()} when supported by the underlying learner.}
 
-\item{doublepg}{Logical. If TRUE, compute \code{pg0} and \code{pg1}. If FALSE, compute a single \code{pg}.}
+\item{param.weights.init}{Optional numeric vector. Initial ensemble weights passed to
+\code{ComputeScores()} when supported by the underlying learner.}
 
-\item{adjustdelta1}{Logical. If TRUE, define \code{deltaadj} and use \code{Y1.var} as the time variable
-for stage-1 scoring; otherwise use \code{OY.var} and \code{delta.var}.}
+\item{optim.method}{Character scalar or \code{NULL}. Optimization method forwarded to
+\code{ComputeScores()}.}
 
-\item{plotps}{Logical. If TRUE, plots propensity distributions by treatment at each stage using \code{propensityplot()}.}
+\item{stratifyCV}{Logical. Passed to \code{ComputeScores()}. If \code{TRUE},
+cross-validation folds are stratified when supported by the underlying fitting
+procedure.}
 
-\item{model.pg}{Character. Prognostic model family used when \code{superLearn=FALSE} ("cox" or "aft").}
+\item{maxit}{Integer. Maximum number of optimization iterations passed to
+\code{ComputeScores()}.}
 
-\item{standardize}{Logical. Whether to standardize covariates for glmnet when \code{superLearn=FALSE}.}
+\item{penalty1}{Optional tuning parameter or penalty value passed to
+\code{ComputeScores()} for stage-1 prognostic estimation.}
 
-\item{superLearn}{Logical. If TRUE, use SuperLearner-based estimation inside \code{ComputeScores}; otherwise use glm/glmnet.}
+\item{penalty2}{Optional tuning parameter or penalty value passed to
+\code{ComputeScores()} for stage-2 prognostic estimation.}
 
-\item{pslink}{Character. Link for binomial treatment propensity model ("logit" or "probit").}
+\item{ngrid}{Integer. Number of grid points used by \code{ComputeScores()} when
+approximating restricted means or evaluating predicted survival curves.}
 
-\item{pglink}{Character. AFT distribution used when \code{model.pg="aft"} (passed to \code{ComputeScores}).}
+\item{censmod}{Logical. If \code{TRUE}, request censoring-related scores from
+\code{ComputeScores()} in addition to treatment propensity and treatment prognostic
+scores.}
+
+\item{pscens}{Logical. If \code{TRUE} and \code{censmod = TRUE}, estimate censoring
+propensity scores within \code{ComputeScores()}.}
+
+\item{pgcens}{Logical. If \code{TRUE} and \code{censmod = TRUE}, estimate censoring
+prognostic scores within \code{ComputeScores()}.}
+
+\item{doublepg}{Logical. Passed to \code{ComputeScores()}. If \code{TRUE}, estimate
+treatment-specific prognostic scores separately by treatment arm. If \code{FALSE},
+the returned prognostic components may be partially unestimated and therefore remain
+\code{NA}.}
+
+\item{param.tune}{Optional list or tuning object passed to \code{ComputeScores()} for
+learner-specific tuning.}
+
+\item{adjustdelta1}{Logical. If \code{TRUE}, construct an adjusted stage-1 event
+indicator \code{deltaadj} and use \code{Y1.var} instead of \code{OY.var} in the
+stage-1 scoring call.}
+
+\item{plotps}{Logical. If \code{TRUE}, plot the raw treatment propensity score
+distribution at each stage using \code{\link{propensityplot}}, when available.}
+
+\item{model.pg}{Character scalar. Prognostic model type passed to \code{ComputeScores()}.
+Currently intended values are \code{"cox"} and \code{"aft"}.}
+
+\item{standardize}{Logical. Passed to \code{ComputeScores()}. If \code{TRUE},
+standardize covariates for penalized regression fits when applicable.}
+
+\item{superLearn}{Logical. Passed to \code{ComputeScores()}. If \code{TRUE}, use
+SuperLearner-based fitting; otherwise use the parametric or penalized alternatives
+implemented there.}
+
+\item{pslink}{Character scalar. Link function for binomial propensity models passed to
+\code{ComputeScores()}, typically \code{"logit"} or \code{"probit"}.}
+
+\item{pglink}{Character scalar. Distribution used when \code{model.pg = "aft"} inside
+\code{ComputeScores()}, for example \code{"exponential"}, \code{"weibull"},
+\code{"lognormal"}, or \code{"loglogistic"}.}
+
+\item{sl_parallel}{Character scalar. Parallel mode passed to \code{ComputeScores()}
+for SuperLearner-based fitting. Must be one of \code{"multicore"} or \code{"seq"}.}
 }
 \value{
-A data.frame equal to \code{data} augmented with score columns. If \code{useds=FALSE},
-returns \code{data} unchanged.
+A \code{data.frame} equal to \code{data} augmented with stage-specific score columns.
+If \code{useds = FALSE}, the original \code{data} is returned unchanged.
 
-\strong{Raw score columns} (merged back by \code{id.var}):
+The following columns are attached for stage 1:
 \itemize{
-\item Stage 1: \code{prog01, prog11, prop1} (or \code{prog01, prop1} if \code{doublepg=FALSE})
-\item Stage 2: \code{prog02, prog12, prop2} (or \code{prog02, prop2} if \code{doublepg=FALSE}; \code{NA} for \code{eta2==0})
+\item \code{probps1}: raw treatment propensity score,
+\item \code{prog01}, \code{prog11}: raw treatment-specific prognostic scores,
+\item \code{probcens1}: raw censoring propensity score,
+\item \code{progcens1}: raw censoring prognostic score,
+\item \code{ps1}, \code{pg01}, \code{pg11}, \code{pscens1}, \code{pgcens1}:
+scaled versions of the above scores.
 }
 
-\strong{Standardized columns} (z-scored; propensity on logit scale):
-\itemize{
-\item Stage 1: \code{pg01, pg11, ps1} (or \code{pg01, ps1})
-\item Stage 2: \code{pg02, pg12, ps2} (or \code{pg02, ps2})
-}
+The analogous columns
+\code{probps2}, \code{prog02}, \code{prog12}, \code{probcens2}, \code{progcens2},
+\code{ps2}, \code{pg02}, \code{pg12}, \code{pscens2}, and \code{pgcens2} are attached
+for stage 2. Subjects with \code{eta2 == 0} receive \code{NA} for all stage-2 score
+columns.
 
-When \code{doublepg=TRUE}, additional convenience columns are created:
-\itemize{
-\item Stage 1: \code{pg1ct}, \code{pg1tc}
-\item Stage 2: \code{pg2ct}, \code{pg2tc}
-}
+If \code{doublepg = TRUE}, the convenience columns \code{pg1ct}, \code{pg1tc},
+\code{pg2ct}, and \code{pg2tc} are also added.
 }
 \description{
-Computes and attaches stage-specific \emph{double scores} for a two-stage treatment setting.
-The function is a thin orchestrator around \code{\link{ComputeScores}} that:
-(i) restricts to stage-2 entrants (\code{eta2==1}) to compute stage-2 scores using \code{A2} and
-\code{Y2}, then (ii) computes stage-1 scores on the full cohort using \code{A1} and either \code{OY}
-(overall outcome) or \code{Y1} (stage-1 time) depending on \code{adjustdelta1}.
+Computes and attaches stage-specific score summaries for a two-stage treatment setting
+by calling \code{\link{ComputeScores}} separately at stage 2 and stage 1.
 
-The output is the original dataset augmented with both \emph{raw} score columns (propensities and
-prognostic scores) and \emph{standardized} score columns intended for distance-based matching or
-downstream modeling.
+The function is a wrapper that:
+\enumerate{
+\item restricts to subjects with \code{eta2 == 1} and computes stage-2 scores using
+\code{Y2.var}, \code{A2.var}, \code{names.var2}, and \code{Xtrt2};
+\item computes stage-1 scores on the full cohort using either \code{OY.var} or
+\code{Y1.var} depending on \code{adjustdelta1}, together with \code{A1.var},
+\code{names.var1}, and \code{Xtrt1};
+\item renames the outputs from \code{ComputeScores()} into stage-specific columns
+and merges them back into the original dataset by subject ID.
+}
 }
 \details{
-\strong{What is computed.}
+\strong{Scores returned by \code{ComputeScores()}.}
+
+For each call, \code{ComputeScores()} returns a fixed set of score columns:
 \itemize{
-\item A treatment propensity score \code{ps = P(A=1|Xtrt)} for each stage.
-\item A prognostic score for each stage based on survival modeling.
+\item \code{ps}: treatment propensity score,
+\item \code{pg0}, \code{pg1}: treatment-specific prognostic scores,
+\item \code{pscens}: censoring propensity score,
+\item \code{pgcens}: censoring prognostic score,
+\item \code{ps_sc}, \code{pg0_sc}, \code{pg1_sc}, \code{pscens_sc}, \code{pgcens_sc}:
+scaled versions of the corresponding raw scores.
 }
 
-If \code{doublepg=TRUE}, prognostic scores are computed separately under each treatment level:
-\code{pg0} (under \code{A=0}) and \code{pg1} (under \code{A=1}). If \code{doublepg=FALSE}, a single
-prognostic score \code{pg} is computed.
+This wrapper renames those outputs to stage-specific names and attaches them to
+\code{data}. For stage 1, the suffix \code{1} is used; for stage 2, the suffix
+\code{2} is used.
 
-\strong{Stage 2.} Subjects are subset to \code{eta2==1} and \code{ComputeScores()} is called with
-\code{Y=Y2.var}, \code{A=A2.var}, covariates \code{names.var2} (prognostic model) and \code{Xtrt2}
-(treatment model). Stage-2 results are merged back to the full dataset; non-entrants receive \code{NA}
-for stage-2 scores.
+\strong{Stage 2.}
 
-\strong{Stage 1.} \code{ComputeScores()} is called on the full cohort with \code{A=A1.var} and either:
+Stage-2 scores are computed only among subjects satisfying \code{data[[eta2.var]] == 1}.
+These scores are then merged back into the full dataset. Subjects who do not enter
+stage 2 receive \code{NA} for all stage-2 score columns.
+
+\strong{Stage 1.}
+
+Stage-1 scores are computed on the full dataset. By default, the stage-1 scoring call
+uses \code{Y = OY.var} and \code{event = delta.var}. If \code{adjustdelta1 = TRUE},
+the function instead uses \code{Y = Y1.var} and a modified event indicator
+\code{deltaadj}, where \code{deltaadj} is initialized as \code{delta.var} and then set
+to 0 for subjects with \code{eta2 == 1} and \code{delta == 1}.
+
+\strong{Treatment and censoring covariates.}
+
+The prognostic model covariates are supplied through \code{names.var1} and
+\code{names.var2}. The treatment propensity model covariates are supplied separately
+through \code{Xtrt1} and \code{Xtrt2}. If \code{Xtrt1} or \code{Xtrt2} is \code{NULL},
+then \code{ComputeScores()} uses the corresponding prognostic covariates.
+
+\strong{Censoring-related scores.}
+
+If \code{censmod = TRUE}, the wrapper also requests censoring-related scores from
+\code{ComputeScores()}. The arguments \code{pscens} and \code{pgcens} determine whether
+censoring propensity and censoring prognostic scores are actively estimated. Since
+\code{ComputeScores()} returns a fixed output structure, the corresponding columns are
+still present in the returned data even when those components are not estimated; in
+such cases they are typically \code{NA}.
+
+\strong{Treatment-specific prognostic scores.}
+
+If \code{doublepg = TRUE}, the wrapper additionally creates convenience variables
+comparing the observed-treatment and opposite-treatment prognostic scores:
 \itemize{
-\item \code{Y=OY.var, event=delta.var} if \code{adjustdelta1=FALSE}, or
-\item \code{Y=Y1.var, event='deltaadj'} if \code{adjustdelta1=TRUE}.
+\item \code{pg1ct}, \code{pg1tc} for stage 1,
+\item \code{pg2ct}, \code{pg2tc} for stage 2.
 }
-When \code{adjustdelta1=TRUE}, \code{deltaadj} is created by copying \code{delta.var} and setting
-\code{deltaadj=0} for \code{eta2==1} and \code{delta==1}.
+These are constructed from the standardized prognostic scores:
+\code{pg01}, \code{pg11}, \code{pg02}, and \code{pg12}.
 
-\strong{Transformations and standardization.} For each stage, \code{ps} is transformed using
-\code{qlogis(ps)} (logit scale) and then all score columns are z-scored using \code{scale()} to produce
-standardized columns (e.g., \code{ps1}, \code{pg01}, \code{pg11}).
+\strong{No-op behavior.}
 
-\strong{Convenience contrasts.} When \code{doublepg=TRUE}, the function creates:
-\itemize{
-\item \code{pg1ct} / \code{pg1tc}: stage-1 “correct-treatment” and “treatment-contrast” prognostic scores
-\item \code{pg2ct} / \code{pg2tc}: analogous stage-2 versions (for \code{eta2==1})
-}
-where “correct-treatment” selects \code{pg0} if observed \code{A=0} and \code{pg1} if observed \code{A=1},
-and “treatment-contrast” selects the opposite arm’s prognostic score.
-
-\strong{Switch behavior.} If \code{useds=FALSE}, the function returns \code{data} unchanged (no-op),
-which is useful in pipelines where score construction is optional.
+If \code{useds = FALSE}, the function returns \code{data} unchanged.
 }
 \seealso{
 \code{\link{ComputeScores}}, \code{\link{propensityplot}}

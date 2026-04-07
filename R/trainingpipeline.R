@@ -190,6 +190,38 @@ Drmatch <- function(
     # -------------------------
     # Full-data prep
     # -------------------------
+    capture_step <- function(expr, step, save_dir = "debug_logs", context = list()) {
+      tryCatch(
+        expr,
+        error = function(e) {
+          dir.create(save_dir, recursive = TRUE, showWarnings = FALSE)
+
+          stamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+          file  <- file.path(save_dir, paste0(step, "_", stamp, ".rds"))
+
+          info <- list(
+            step = step,
+            message = conditionMessage(e),
+            class = class(e),
+            call = conditionCall(e),
+            sys.calls = vapply(
+              sys.calls(),
+              function(x) paste(deparse(x), collapse = " "),
+              character(1)
+            ),
+            context = context,
+            time = Sys.time()
+          )
+
+          saveRDS(info, file)
+
+          message(sprintf("[%s] %s", step, conditionMessage(e)))
+          message(sprintf("[%s] debug saved to %s", step, file))
+
+          NULL
+        }
+      )
+    }
     mldata <- data # Get_data(data)
     rtau <- c(cap_months, cap_months)
 
@@ -225,93 +257,221 @@ Drmatch <- function(
     # -------------------------
     # Imputation + double scores
     # -------------------------
-    imptrain <- impute_censored_outcomes(
-      data         = mldata,
-      id.var       = id.var,
-      eta2.var     = eta2.var,
-      Y1.var       = Y1.var,
-      Y2.var       = Y2.var,
-      delta.var    = delta.var,
-      OY.var       = OY.var,
-      A1.var       = A1.var,
-      A2.var       = A2.var,
-      names.var1   = if (adjustdelta1) unique(c(names.var1, A1.var, 'Y1.sd')) else unique(c(names.var1, A1.var, 'OY.sd')),
-      names.var2   = unique(c(names.var2, A1.var, A2.var, 'Y1.sd', 'Y2.sd')),
-      exact1.vars  = exact1.vars,
-      exact2.vars  = exact2.vars,
-      usecov       = FALSE,
-      useds        = FALSE,
-      adjustdelta1 = adjustdelta1,
-      cores        = cores,
-      tau          = NULL,
-      sl.seed      = 123,
-      A.SL.library1 = A.SL.library1,
-      A.SL.library2 = A.SL.library2,
-      Y.SL.library  = Y.SL.library,
-      A.method     = A.method,
-      Y.method     = Y.method,
-      param.weights.fix  = param.weights.fix,
-      param.weights.init = param.weights.init,
-      optim.method = optim.method,
-      maxit        = 10000,
-      penalty1     = penalty1,
-      penalty2     = penalty2,
-      ngrid        = 2000,
-      pscens       = TRUE,
-      pgcens       = FALSE,
-      param.tune   = param.tune,
-      plotps       = plotps,
-      model.pg     = model.pg,
-      standardize  = standardize,
-      superLearn   = superLearn,
-      pslink       = pslink,
-      distance     = distance,
-      method       = method,
-      K            = K,
-      replacement  = replacement
+    tictoc::tic("obtain the double scores for training fold")
+    MLdatascore <- capture_step(
+      get_doublescores(
+        data       = mldata,
+        id.var     = id.var,
+        eta2.var   = eta2.var,
+        Y1.var     = Y1.var,
+        Y2.var     = Y2.var,
+        delta.var  = delta.var,
+        OY.var     = OY.var,
+        A1.var     = A1.var,
+        A2.var     = A2.var,
+        names.var1 = names.var1,
+        names.var2 = names.var2,
+        Xtrt1      = NULL,
+        Xtrt2      = NULL,
+        useds      = TRUE,
+        cores      = cores,
+        stratifyCV  = FALSE,
+        tau        = 24,
+        sl.seed    = 123,
+        A.SL.library1 = A.SL.library1,
+        A.SL.library2 = A.SL.library2,
+        Y.SL.library  = Y.SL.library,
+        A.method      = A.method,
+        Y.method      = Y.method,
+        param.weights.fix  = param.weights.fix,
+        param.weights.init = param.weights.init,
+        optim.method = optim.method,
+        maxit        = 100000,
+        penalty1     = penalty1,
+        penalty2     = penalty2,
+        ngrid        = 2000,
+        pscens       = TRUE,
+        pgcens       = FALSE,
+        censmod      = TRUE,
+        doublepg     = TRUE,
+        param.tune   = param.tune,
+        adjustdelta1 = adjustdelta1,
+        plotps       = TRUE,
+        model.pg     = model.pg,
+        standardize  = standardize,
+        superLearn   = superLearn,
+        pslink       = pslink,
+        pglink       = pglink
+      ),
+      step = "get_doublescores",
+      context = list(
+        #iter = jj,
+        n_train = nrow(mldata),
+        #n_test = nrow(tmpData),
+        A1.var = A1.var,
+        A2.var = A2.var
+      )
     )
+    tictoc::toc()
 
-    MLdata <- get_doublescores(
-      data         = imptrain,
-      id.var       = id.var,
-      eta2.var     = eta2.var,
-      Y1.var       = Y1.var,
-      Y2.var       = Y2.var,
-      delta.var    = delta.var,
-      OY.var       = OY.var,
-      A1.var       = A1.var,
-      A2.var       = A2.var,
-      names.var1   = names.var1,
-      names.var2   = names.var2,
-      Xtrt1        = NULL,
-      Xtrt2        = NULL,
-      useds        = TRUE,
-      cores        = cores,
-      tau          = NULL,
-      sl.seed      = 123,
-      A.SL.library1 = A.SL.library1,
-      A.SL.library2 = A.SL.library2,
-      Y.SL.library  = Y.SL.library,
-      A.method     = A.method,
-      Y.method     = Y.method,
-      param.weights.fix  = param.weights.fix,
-      param.weights.init = param.weights.init,
-      optim.method = optim.method,
-      maxit        = maxit,
-      penalty1     = penalty1,
-      penalty2     = penalty2,
-      ngrid        = ngrid,
-      censmod      = FALSE,
-      doublepg     = TRUE,
-      param.tune   = param.tune,
-      adjustdelta1 = adjustdelta1,
-      plotps       = plotps,
-      model.pg     = model.pg,
-      standardize  = standardize,
-      superLearn   = superLearn,
-      pslink       = pslink,
-      pglink       = pglink
+    if (is.null(MLdatascore)) {
+      message("Skipping fold because get_doublescores failed.")
+      return(NULL)
+    }
+
+
+
+
+    tictoc::tic("Imputation of censored time")
+    MLdata <- capture_step(
+      impute_censored_outcomes(
+        data       = MLdatascore,
+        id.var     = id.var,
+        eta2.var   = eta2.var,
+        Y1.var     = Y1.var,
+        Y2.var     = Y2.var,
+        delta.var  = delta.var,
+        OY.var     = OY.var,
+        A1.var     = A1.var,
+        A2.var     = A2.var,
+        names.var1 = c(names.var1, A1.var),
+        names.var2 = c(names.var2, A1.var, A2.var, "Y1.sd"),
+        exact1.vars = exact1.vars,
+        exact2.vars = exact2.vars,
+        usecov      = FALSE,
+        useds       = TRUE,
+        adjustdelta1 = adjustdelta1,
+        cores       = cores,
+        tau         = NULL,
+        sl.seed     = 123,
+        A.SL.library1 = A.SL.library1,
+        A.SL.library2 = A.SL.library2,
+        Y.SL.library  = Y.SL.library,
+        A.method      = A.method,
+        Y.method      = Y.method,
+        param.weights.fix  = param.weights.fix,
+        param.weights.init = param.weights.init,
+        optim.method = optim.method,
+        maxit        = 10000,
+        penalty1     = penalty1,
+        penalty2     = penalty2,
+        ngrid        = 2000,
+        pscens       = TRUE,
+        pgcens       = FALSE,
+        param.tune   = param.tune,
+        plotps       = TRUE,
+        model.pg     = model.pg,
+        standardize  = standardize,
+        superLearn   = superLearn,
+        pslink       = pslink,
+        distance     = distance,
+        method       = method,
+        K            = K,
+        replacement  = replacement
+      ),
+      step = "impute_censored_outcomes",
+      context = list(
+        #iter = jj,
+        n_rows = nrow(MLdatascore),
+        n_eta2 = sum(MLdatascore[[eta2.var]] == 1, na.rm = TRUE)
+      )
     )
+    tictoc::toc()
+
+    if (is.null(MLdata)) {
+      message("Skipping fold because impute_censored_outcomes failed.")
+      return(NULL)
+    }
+
+
+
+    # imptrain <- impute_censored_outcomes(
+    #   data         = mldata,
+    #   id.var       = id.var,
+    #   eta2.var     = eta2.var,
+    #   Y1.var       = Y1.var,
+    #   Y2.var       = Y2.var,
+    #   delta.var    = delta.var,
+    #   OY.var       = OY.var,
+    #   A1.var       = A1.var,
+    #   A2.var       = A2.var,
+    #   names.var1   = if (adjustdelta1) unique(c(names.var1, A1.var, 'Y1.sd')) else unique(c(names.var1, A1.var, 'OY.sd')),
+    #   names.var2   = unique(c(names.var2, A1.var, A2.var, 'Y1.sd', 'Y2.sd')),
+    #   exact1.vars  = exact1.vars,
+    #   exact2.vars  = exact2.vars,
+    #   usecov       = FALSE,
+    #   useds        = FALSE,
+    #   adjustdelta1 = adjustdelta1,
+    #   cores        = cores,
+    #   tau          = NULL,
+    #   sl.seed      = 123,
+    #   A.SL.library1 = A.SL.library1,
+    #   A.SL.library2 = A.SL.library2,
+    #   Y.SL.library  = Y.SL.library,
+    #   A.method     = A.method,
+    #   Y.method     = Y.method,
+    #   param.weights.fix  = param.weights.fix,
+    #   param.weights.init = param.weights.init,
+    #   optim.method = optim.method,
+    #   maxit        = 10000,
+    #   penalty1     = penalty1,
+    #   penalty2     = penalty2,
+    #   ngrid        = 2000,
+    #   pscens       = TRUE,
+    #   pgcens       = FALSE,
+    #   param.tune   = param.tune,
+    #   plotps       = plotps,
+    #   model.pg     = model.pg,
+    #   standardize  = standardize,
+    #   superLearn   = superLearn,
+    #   pslink       = pslink,
+    #   distance     = distance,
+    #   method       = method,
+    #   K            = K,
+    #   replacement  = replacement
+    # )
+    #
+    # MLdata <- get_doublescores(
+    #   data         = imptrain,
+    #   id.var       = id.var,
+    #   eta2.var     = eta2.var,
+    #   Y1.var       = Y1.var,
+    #   Y2.var       = Y2.var,
+    #   delta.var    = delta.var,
+    #   OY.var       = OY.var,
+    #   A1.var       = A1.var,
+    #   A2.var       = A2.var,
+    #   names.var1   = names.var1,
+    #   names.var2   = names.var2,
+    #   Xtrt1        = NULL,
+    #   Xtrt2        = NULL,
+    #   useds        = TRUE,
+    #   cores        = cores,
+    #   tau          = NULL,
+    #   sl.seed      = 123,
+    #   A.SL.library1 = A.SL.library1,
+    #   A.SL.library2 = A.SL.library2,
+    #   Y.SL.library  = Y.SL.library,
+    #   A.method     = A.method,
+    #   Y.method     = Y.method,
+    #   param.weights.fix  = param.weights.fix,
+    #   param.weights.init = param.weights.init,
+    #   optim.method = optim.method,
+    #   maxit        = maxit,
+    #   penalty1     = penalty1,
+    #   penalty2     = penalty2,
+    #   ngrid        = ngrid,
+    #   censmod      = FALSE,
+    #   doublepg     = TRUE,
+    #   param.tune   = param.tune,
+    #   adjustdelta1 = adjustdelta1,
+    #   plotps       = plotps,
+    #   model.pg     = model.pg,
+    #   standardize  = standardize,
+    #   superLearn   = superLearn,
+    #   pslink       = pslink,
+    #   pglink       = pglink
+    # )
 
     cl <- parallel::makeCluster(cores)
     on.exit({
