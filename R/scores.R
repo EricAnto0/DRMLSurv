@@ -117,7 +117,6 @@ tag_error <- function(expr, label) {
 #' Must be one of \code{"logit"} or \code{"probit"}.
 #' @param pglink Character scalar. Distribution used in
 #' \code{flexsurv::flexsurvreg()} when \code{model.pg = "aft"}.
-#' numeric matrix; otherwise return a \code{data.frame}.
 #' @param sl_parallel Character scalar. Parallel mode for SuperLearner-based
 #' fitting. Must be one of \code{"multicore"} or \code{"seq"}.
 #'
