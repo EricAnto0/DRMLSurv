@@ -194,29 +194,41 @@ Drmatch <- function(
       tryCatch(
         expr,
         error = function(e) {
-          dir.create(save_dir, recursive = TRUE, showWarnings = FALSE)
+          debug_file <- tryCatch({
+            dir.create(save_dir, recursive = TRUE, showWarnings = FALSE)
 
-          stamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-          file  <- file.path(save_dir, paste0(step, "_", stamp, ".rds"))
+            stamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+            file  <- file.path(save_dir, paste0(step, "_", stamp, ".rds"))
 
-          info <- list(
-            step = step,
-            message = conditionMessage(e),
-            class = class(e),
-            call = conditionCall(e),
-            sys.calls = vapply(
-              sys.calls(),
-              function(x) paste(deparse(x), collapse = " "),
-              character(1)
-            ),
-            context = context,
-            time = Sys.time()
-          )
+            info <- list(
+              step = step,
+              message = conditionMessage(e),
+              class = class(e),
+              call = conditionCall(e),
+              sys.calls = vapply(
+                sys.calls(),
+                function(x) paste(deparse(x), collapse = " "),
+                character(1)
+              ),
+              context = context,
+              time = Sys.time()
+            )
 
-          saveRDS(info, file)
+            saveRDS(info, file)
+            file
+          }, error = function(save_err) {
+            message(sprintf(
+              "[%s] failed to save debug info: %s",
+              step,
+              conditionMessage(save_err)
+            ))
+            NULL
+          })
 
           message(sprintf("[%s] %s", step, conditionMessage(e)))
-          message(sprintf("[%s] debug saved to %s", step, file))
+          if (!is.null(debug_file)) {
+            message(sprintf("[%s] debug saved to %s", step, debug_file))
+          }
 
           NULL
         }
