@@ -1,16 +1,23 @@
-# Compute stage-specific treatment propensity and prognostic “double scores”
+# Compute stage-specific treatment, prognostic, and optional censoring scores
 
-Computes and attaches stage-specific *double scores* for a two-stage
-treatment setting. The function is a thin orchestrator around
+Computes and attaches stage-specific score summaries for a two-stage
+treatment setting by calling
 [`ComputeScores`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
-that: (i) restricts to stage-2 entrants (`eta2==1`) to compute stage-2
-scores using `A2` and `Y2`, then (ii) computes stage-1 scores on the
-full cohort using `A1` and either `OY` (overall outcome) or `Y1`
-(stage-1 time) depending on `adjustdelta1`.
+separately at stage 2 and stage 1.
 
-The output is the original dataset augmented with both *raw* score
-columns (propensities and prognostic scores) and *standardized* score
-columns intended for distance-based matching or downstream modeling.
+The function is a wrapper that:
+
+1.  restricts to subjects with `eta2 == 1` and computes stage-2 scores
+    using `Y2.var`, `A2.var`, `names.var2`, and `Xtrt2`;
+
+2.  computes stage-1 scores on the full cohort using either `OY.var` or
+    `Y1.var` depending on `adjustdelta1`, together with `A1.var`,
+    `names.var1`, and `Xtrt1`;
+
+3.  renames the outputs from
+    [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+    into stage-specific columns and merges them back into the original
+    dataset by subject ID.
 
 ## Usage
 
@@ -27,8 +34,8 @@ get_doublescores(
   A2.var,
   names.var1,
   names.var2,
-  Xtrt1,
-  Xtrt2,
+  Xtrt1 = NULL,
+  Xtrt2 = NULL,
   useds = FALSE,
   cores = 1,
   tau,
@@ -41,11 +48,14 @@ get_doublescores(
   param.weights.fix = NULL,
   param.weights.init = NULL,
   optim.method = NULL,
+  stratifyCV = TRUE,
   maxit = 1000,
   penalty1 = NULL,
   penalty2 = NULL,
   ngrid = 50,
   censmod = TRUE,
+  pscens = TRUE,
+  pgcens = TRUE,
   doublepg = TRUE,
   param.tune = NULL,
   adjustdelta1 = FALSE,
@@ -54,7 +64,8 @@ get_doublescores(
   standardize = FALSE,
   superLearn = TRUE,
   pslink = "logit",
-  pglink = NULL
+  pglink = "lognormal",
+  sl_parallel = c("multicore", "seq")
 )
 ```
 
@@ -62,227 +73,357 @@ get_doublescores(
 
 - data:
 
-  A data.frame containing all required stage-1 and stage-2 variables.
+  A `data.frame` containing subject identifiers, stage indicators,
+  outcomes, treatment variables, and covariates required for stage-1 and
+  stage-2 score estimation.
 
 - id.var:
 
-  Character scalar. Subject identifier column name.
+  Character scalar. Name of the subject identifier column.
 
 - eta2.var:
 
-  Character scalar. Stage-2 entry indicator column name (1=entered stage
-  2, 0=did not).
+  Character scalar. Name of the stage-2 entry indicator column, where
+  `1` denotes entry into stage 2 and `0` denotes no entry.
 
 - Y1.var:
 
-  Character scalar. Stage-1 time/outcome component (used only when
-  `adjustdelta1=TRUE`).
+  Character scalar. Name of the stage-1 outcome or time variable used
+  when `adjustdelta1 = TRUE`.
 
 - Y2.var:
 
-  Character scalar. Stage-2 outcome/time column used for stage-2
-  prognostic scoring.
+  Character scalar. Name of the stage-2 outcome or time variable.
 
 - delta.var:
 
-  Character scalar. Event indicator column name used for survival
-  modeling.
+  Character scalar. Name of the event indicator variable used in the
+  survival or censoring models.
 
 - OY.var:
 
-  Character scalar. Overall outcome/time column used for stage-1
-  prognostic scoring when `adjustdelta1=FALSE`.
+  Character scalar. Name of the overall outcome or time variable used
+  for stage-1 scoring when `adjustdelta1 = FALSE`.
 
 - A1.var:
 
-  Character scalar. Stage-1 treatment indicator column name.
+  Character scalar. Name of the stage-1 treatment indicator variable.
 
 - A2.var:
 
-  Character scalar. Stage-2 treatment indicator column name.
+  Character scalar. Name of the stage-2 treatment indicator variable.
 
 - names.var1:
 
-  Character vector. Covariate names for the stage-1 prognostic model.
+  Character vector. Covariate names used in the stage-1 prognostic score
+  model.
 
 - names.var2:
 
-  Character vector. Covariate names for the stage-2 prognostic model
-  (stage-2 entrants only).
+  Character vector. Covariate names used in the stage-2 prognostic score
+  model.
 
 - Xtrt1:
 
-  Character vector. Covariate names for the stage-1 treatment propensity
-  model (if different from `names.var1`).
+  Character vector or `NULL`. Covariate names used in the stage-1
+  treatment propensity model. If `NULL`,
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  uses `names.var1`.
 
 - Xtrt2:
 
-  Character vector. Covariate names for the stage-2 treatment propensity
-  model (if different from `names.var2`).
+  Character vector or `NULL`. Covariate names used in the stage-2
+  treatment propensity model. If `NULL`,
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  uses `names.var2`.
 
 - useds:
 
-  Logical. If TRUE, compute and merge scores. If FALSE, return `data`
-  unchanged.
+  Logical. If `TRUE`, compute and merge the stage-specific scores. If
+  `FALSE`, return `data` unchanged.
 
 - cores:
 
-  Integer. Number of cores passed to `ComputeScores` (if supported by
-  the backend).
+  Integer. Number of cores passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  for model fitting.
 
 - tau:
 
-  Optional numeric. Truncation horizon used in prognostic mean
-  calculations inside `ComputeScores`.
+  Optional numeric truncation horizon passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  for restricted mean prediction or time-grid construction.
 
 - sl.seed:
 
-  Integer. RNG seed passed to `ComputeScores`.
+  Integer. Random seed passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
 
-- A.SL.library1, A.SL.library2:
+- A.SL.library1:
 
-  Character vectors. SuperLearner libraries for stage-1 and stage-2
-  treatment models.
+  Character vector. SuperLearner library for the stage-1 treatment
+  propensity model.
+
+- A.SL.library2:
+
+  Character vector. SuperLearner library for the stage-2 treatment
+  propensity model.
 
 - Y.SL.library:
 
-  Character vector. Learners for survivalSL prognostic modeling.
+  Character vector. Learners used for prognostic survival modeling
+  inside
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
 
-- A.method, Y.method:
+- A.method:
 
-  Optional. Scoring metrics passed to `ComputeScores`.
+  Optional character scalar. Performance metric passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  for treatment propensity estimation.
 
-- param.weights.fix, param.weights.init, optim.method, maxit, penalty1,
-  penalty2, param.tune:
+- Y.method:
 
-  Tuning/optimization controls forwarded to `ComputeScores`.
+  Optional character scalar. Performance metric passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  for prognostic survival estimation.
+
+- param.weights.fix:
+
+  Optional numeric vector. Fixed ensemble weights passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  when supported by the underlying learner.
+
+- param.weights.init:
+
+  Optional numeric vector. Initial ensemble weights passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  when supported by the underlying learner.
+
+- optim.method:
+
+  Character scalar or `NULL`. Optimization method forwarded to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+
+- stratifyCV:
+
+  Logical. Passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  If `TRUE`, cross-validation folds are stratified when supported by the
+  underlying fitting procedure.
+
+- maxit:
+
+  Integer. Maximum number of optimization iterations passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+
+- penalty1:
+
+  Optional tuning parameter or penalty value passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  for stage-1 prognostic estimation.
+
+- penalty2:
+
+  Optional tuning parameter or penalty value passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  for stage-2 prognostic estimation.
 
 - ngrid:
 
-  Integer. Number of grid points used when integrating survival curves
-  for mean survival time.
+  Integer. Number of grid points used by
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  when approximating restricted means or evaluating predicted survival
+  curves.
 
 - censmod:
 
-  Logical. Included for interface consistency; in this wrapper the calls
-  to `ComputeScores` set `censmod=FALSE` to compute treatment/prognostic
-  (not censoring) scores.
+  Logical. If `TRUE`, request censoring-related scores from
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  in addition to treatment propensity and treatment prognostic scores.
+
+- pscens:
+
+  Logical. If `TRUE` and `censmod = TRUE`, estimate censoring propensity
+  scores within
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+
+- pgcens:
+
+  Logical. If `TRUE` and `censmod = TRUE`, estimate censoring prognostic
+  scores within
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
 
 - doublepg:
 
-  Logical. If TRUE, compute `pg0` and `pg1`. If FALSE, compute a single
-  `pg`.
+  Logical. Passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  If `TRUE`, estimate treatment-specific prognostic scores separately by
+  treatment arm. If `FALSE`, the returned prognostic components may be
+  partially unestimated and therefore remain `NA`.
+
+- param.tune:
+
+  Optional list or tuning object passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  for learner-specific tuning.
 
 - adjustdelta1:
 
-  Logical. If TRUE, define `deltaadj` and use `Y1.var` as the time
-  variable for stage-1 scoring; otherwise use `OY.var` and `delta.var`.
+  Logical. If `TRUE`, construct an adjusted stage-1 event indicator
+  `deltaadj` and use `Y1.var` instead of `OY.var` in the stage-1 scoring
+  call.
 
 - plotps:
 
-  Logical. If TRUE, plots propensity distributions by treatment at each
-  stage using
-  [`propensityplot()`](https://ericanto0.github.io/DRMLSurv/reference/propensityplot.md).
+  Logical. If `TRUE`, plot the raw treatment propensity score
+  distribution at each stage using
+  [`propensityplot`](https://ericanto0.github.io/DRMLSurv/reference/propensityplot.md),
+  when available.
 
 - model.pg:
 
-  Character. Prognostic model family used when `superLearn=FALSE` ("cox"
-  or "aft").
+  Character scalar. Prognostic model type passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  Currently intended values are `"cox"` and `"aft"`.
 
 - standardize:
 
-  Logical. Whether to standardize covariates for glmnet when
-  `superLearn=FALSE`.
+  Logical. Passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  If `TRUE`, standardize covariates for penalized regression fits when
+  applicable.
 
 - superLearn:
 
-  Logical. If TRUE, use SuperLearner-based estimation inside
-  `ComputeScores`; otherwise use glm/glmnet.
+  Logical. Passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  If `TRUE`, use SuperLearner-based fitting; otherwise use the
+  parametric or penalized alternatives implemented there.
 
 - pslink:
 
-  Character. Link for binomial treatment propensity model ("logit" or
-  "probit").
+  Character scalar. Link function for binomial propensity models passed
+  to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md),
+  typically `"logit"` or `"probit"`.
 
 - pglink:
 
-  Character. AFT distribution used when `model.pg="aft"` (passed to
-  `ComputeScores`).
+  Character scalar. Distribution used when `model.pg = "aft"` inside
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md),
+  for example `"exponential"`, `"weibull"`, `"lognormal"`, or
+  `"loglogistic"`.
+
+- sl_parallel:
+
+  Character scalar. Parallel mode passed to
+  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  for SuperLearner-based fitting. Must be one of `"multicore"` or
+  `"seq"`.
 
 ## Value
 
-A data.frame equal to `data` augmented with score columns. If
-`useds=FALSE`, returns `data` unchanged.
+A `data.frame` equal to `data` augmented with stage-specific score
+columns. If `useds = FALSE`, the original `data` is returned unchanged.
 
-**Raw score columns** (merged back by `id.var`):
+The following columns are attached for stage 1:
 
-- Stage 1: `prog01, prog11, prop1` (or `prog01, prop1` if
-  `doublepg=FALSE`)
+- `probps1`: raw treatment propensity score,
 
-- Stage 2: `prog02, prog12, prop2` (or `prog02, prop2` if
-  `doublepg=FALSE`; `NA` for `eta2==0`)
+- `prog01`, `prog11`: raw treatment-specific prognostic scores,
 
-**Standardized columns** (z-scored; propensity on logit scale):
+- `probcens1`: raw censoring propensity score,
 
-- Stage 1: `pg01, pg11, ps1` (or `pg01, ps1`)
+- `progcens1`: raw censoring prognostic score,
 
-- Stage 2: `pg02, pg12, ps2` (or `pg02, ps2`)
+- `ps1`, `pg01`, `pg11`, `pscens1`, `pgcens1`: scaled versions of the
+  above scores.
 
-When `doublepg=TRUE`, additional convenience columns are created:
+The analogous columns `probps2`, `prog02`, `prog12`, `probcens2`,
+`progcens2`, `ps2`, `pg02`, `pg12`, `pscens2`, and `pgcens2` are
+attached for stage 2. Subjects with `eta2 == 0` receive `NA` for all
+stage-2 score columns.
 
-- Stage 1: `pg1ct`, `pg1tc`
-
-- Stage 2: `pg2ct`, `pg2tc`
+If `doublepg = TRUE`, the convenience columns `pg1ct`, `pg1tc`, `pg2ct`,
+and `pg2tc` are also added.
 
 ## Details
 
-**What is computed.**
+**Scores returned by
+[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).**
 
-- A treatment propensity score `ps = P(A=1|Xtrt)` for each stage.
-
-- A prognostic score for each stage based on survival modeling.
-
-If `doublepg=TRUE`, prognostic scores are computed separately under each
-treatment level: `pg0` (under `A=0`) and `pg1` (under `A=1`). If
-`doublepg=FALSE`, a single prognostic score `pg` is computed.
-
-**Stage 2.** Subjects are subset to `eta2==1` and
+For each call,
 [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
-is called with `Y=Y2.var`, `A=A2.var`, covariates `names.var2`
-(prognostic model) and `Xtrt2` (treatment model). Stage-2 results are
-merged back to the full dataset; non-entrants receive `NA` for stage-2
-scores.
+returns a fixed set of score columns:
+
+- `ps`: treatment propensity score,
+
+- `pg0`, `pg1`: treatment-specific prognostic scores,
+
+- `pscens`: censoring propensity score,
+
+- `pgcens`: censoring prognostic score,
+
+- `ps_sc`, `pg0_sc`, `pg1_sc`, `pscens_sc`, `pgcens_sc`: scaled versions
+  of the corresponding raw scores.
+
+This wrapper renames those outputs to stage-specific names and attaches
+them to `data`. For stage 1, the suffix `1` is used; for stage 2, the
+suffix `2` is used.
+
+**Stage 2.**
+
+Stage-2 scores are computed only among subjects satisfying
+`data[[eta2.var]] == 1`. These scores are then merged back into the full
+dataset. Subjects who do not enter stage 2 receive `NA` for all stage-2
+score columns.
 
 **Stage 1.**
+
+Stage-1 scores are computed on the full dataset. By default, the stage-1
+scoring call uses `Y = OY.var` and `event = delta.var`. If
+`adjustdelta1 = TRUE`, the function instead uses `Y = Y1.var` and a
+modified event indicator `deltaadj`, where `deltaadj` is initialized as
+`delta.var` and then set to 0 for subjects with `eta2 == 1` and
+`delta == 1`.
+
+**Treatment and censoring covariates.**
+
+The prognostic model covariates are supplied through `names.var1` and
+`names.var2`. The treatment propensity model covariates are supplied
+separately through `Xtrt1` and `Xtrt2`. If `Xtrt1` or `Xtrt2` is `NULL`,
+then
 [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
-is called on the full cohort with `A=A1.var` and either:
+uses the corresponding prognostic covariates.
 
-- `Y=OY.var, event=delta.var` if `adjustdelta1=FALSE`, or
+**Censoring-related scores.**
 
-- `Y=Y1.var, event='deltaadj'` if `adjustdelta1=TRUE`.
+If `censmod = TRUE`, the wrapper also requests censoring-related scores
+from
+[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+The arguments `pscens` and `pgcens` determine whether censoring
+propensity and censoring prognostic scores are actively estimated. Since
+[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+returns a fixed output structure, the corresponding columns are still
+present in the returned data even when those components are not
+estimated; in such cases they are typically `NA`.
 
-When `adjustdelta1=TRUE`, `deltaadj` is created by copying `delta.var`
-and setting `deltaadj=0` for `eta2==1` and `delta==1`.
+**Treatment-specific prognostic scores.**
 
-**Transformations and standardization.** For each stage, `ps` is
-transformed using `qlogis(ps)` (logit scale) and then all score columns
-are z-scored using [`scale()`](https://rdrr.io/r/base/scale.html) to
-produce standardized columns (e.g., `ps1`, `pg01`, `pg11`).
+If `doublepg = TRUE`, the wrapper additionally creates convenience
+variables comparing the observed-treatment and opposite-treatment
+prognostic scores:
 
-**Convenience contrasts.** When `doublepg=TRUE`, the function creates:
+- `pg1ct`, `pg1tc` for stage 1,
 
-- `pg1ct` / `pg1tc`: stage-1 “correct-treatment” and
-  “treatment-contrast” prognostic scores
+- `pg2ct`, `pg2tc` for stage 2.
 
-- `pg2ct` / `pg2tc`: analogous stage-2 versions (for `eta2==1`)
+These are constructed from the standardized prognostic scores: `pg01`,
+`pg11`, `pg02`, and `pg12`.
 
-where “correct-treatment” selects `pg0` if observed `A=0` and `pg1` if
-observed `A=1`, and “treatment-contrast” selects the opposite arm’s
-prognostic score.
+**No-op behavior.**
 
-**Switch behavior.** If `useds=FALSE`, the function returns `data`
-unchanged (no-op), which is useful in pipelines where score construction
-is optional.
+If `useds = FALSE`, the function returns `data` unchanged.
 
 ## See also
 

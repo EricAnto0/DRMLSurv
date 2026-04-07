@@ -3,8 +3,7 @@
 ## All functions
 
 - [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
-  : Compute propensity and prognostic scores (treatment- or
-  censoring-based)
+  : Compute treatment, prognostic, and optional censoring-related scores
 
 - [`DATASET`](https://ericanto0.github.io/DRMLSurv/reference/DATASET.md)
   :
@@ -17,8 +16,8 @@
   : Two-stage DTR learning/evaluation pipeline with cross-fitting
 
 - [`get_doublescores()`](https://ericanto0.github.io/DRMLSurv/reference/get_doublescores.md)
-  : Compute stage-specific treatment propensity and prognostic “double
-  scores”
+  : Compute stage-specific treatment, prognostic, and optional censoring
+  scores
 
 - [`impute_censored_outcomes()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_outcomes.md)
   : Impute censored stage-specific outcomes via matching with optional

@@ -1,10 +1,13 @@
-# Compute propensity and prognostic scores (treatment- or censoring-based)
+# Compute treatment, prognostic, and optional censoring-related scores
 
-Computes (i) a propensity score and (ii) prognostic score(s) for use in
-matching/weighting pipelines. Supports SuperLearner-based fitting or
-glm/glmnet-based alternatives. Can compute treatment PS +
-treatment-specific prognostic scores (pg0/pg1), or censoring PS/PG
-(pscens/pgcens) when `censmod=TRUE`.
+Computes subject-level score summaries for downstream matching,
+weighting, or augmentation procedures. The function always estimates a
+treatment propensity score and can additionally estimate
+treatment-specific prognostic scores and censoring-related scores,
+depending on the supplied flags.
+
+Estimation may be carried out using SuperLearner / survivalSL-based
+models or via glm / glmnet / Cox / AFT alternatives.
 
 ## Usage
 
@@ -20,7 +23,7 @@ ComputeScores(
   doublepg = TRUE,
   outer_CV = 5,
   inner_CV = NULL,
-  stratifyCV = FALSE,
+  stratifyCV = TRUE,
   cores = 5,
   tau = NULL,
   sl.seed = 100,
@@ -42,7 +45,8 @@ ComputeScores(
   standardize = FALSE,
   superLearn = TRUE,
   pslink = "logit",
-  pglink = "lognormal"
+  pglink = "lognormal",
+  sl_parallel = c("multicore", "seq")
 )
 ```
 
@@ -50,118 +54,210 @@ ComputeScores(
 
 - data:
 
-  data.frame with all variables.
+  A `data.frame` containing all variables required for fitting.
 
 - id:
 
-  Character scalar. Subject ID column name.
+  Character scalar. Subject identifier column name.
 
 - Y:
 
-  Character scalar. Survival time column name.
+  Character scalar. Outcome or follow-up time column name.
 
 - event:
 
-  Character scalar. Event indicator column name (1=event, 0=censored).
+  Character scalar. Event indicator column name, coded `1` for event and
+  `0` for censoring.
 
 - X:
 
-  Character vector. Covariate column names for prognostic model(s).
+  Character vector. Covariate names used in the prognostic model(s).
 
 - A:
 
-  Character scalar. Treatment indicator column name (coded 0/1 or -1/1).
+  Character scalar. Binary treatment indicator column name. Values may
+  be coded as `0/1` or `-1/1`; values equal to `1` are treated as the
+  treated group.
 
 - Xtrt:
 
-  Optional character vector. Covariates for treatment model if different
-  from `X`.
+  Optional character vector. Covariates used in the treatment propensity
+  model. If `NULL`, `X` is used.
 
 - doublepg:
 
-  Logical. If TRUE and `censmod=FALSE`, fit separate prognostic models
-  by treatment arm.
+  Logical. If `TRUE`, estimate treatment-specific prognostic scores
+  `pg0` and `pg1`. If `FALSE`, these columns are returned but remain
+  `NA`.
 
 - outer_CV:
 
-  Integer. Outer CV folds.
+  Integer. Number of outer cross-validation folds.
 
 - inner_CV:
 
-  Optional integer. Inner CV folds for nested CV (SuperLearner).
+  Optional integer. Number of inner cross-validation folds for nested
+  SuperLearner fitting.
 
 - stratifyCV:
 
-  Logical. Whether to stratify CV folds.
+  Logical. Whether to request stratified cross-validation when supported
+  by the underlying fitting routine.
 
 - cores:
 
-  Integer. Requested cores for parallel fit (multicore only on
-  non-Windows).
+  Integer. Number of cores requested for fitting.
 
 - tau:
 
-  Optional numeric. Truncation horizon for mean survival.
+  Optional numeric truncation horizon used when constructing the
+  prediction time grid for restricted mean calculations.
 
 - sl.seed:
 
-  Integer. Seed for SuperLearner.
+  Integer. Random seed used in SuperLearner-based fitting.
 
 - A.SL.library:
 
-  Character vector. SL learners for propensity/censoring models.
+  Character vector. SuperLearner library used for treatment propensity
+  and censoring-related models.
 
 - Y.SL.library:
 
-  Character vector. Learners for survivalSL prognostic models.
+  Character vector. Learners used in `survivalSL` for treatment-specific
+  prognostic modeling.
 
 - A.method:
 
-  Character. CV risk method for propensity SL.
+  Character scalar. Risk or loss function passed to `CV.SuperLearner()`.
 
 - Y.method:
 
-  Character. Metric for survivalSL.
+  Character scalar. Metric passed to `survivalSL()`.
 
-- param.tune, ngrid, param.weights.fix, param.weights.init,
-  optim.method, penalty, maxit:
+- param.tune:
 
-  Control survivalSL fitting and prediction.
+  Optional tuning object passed to `survivalSL()`.
 
-- pgcens, pscens, censmod:
+- ngrid:
 
-  Logical flags controlling censoring scores.
+  Integer. Number of grid points used for survival-curve prediction and
+  numerical integration.
+
+- param.weights.fix:
+
+  Optional vector of fixed ensemble weights passed to `survivalSL()`
+  when supported.
+
+- param.weights.init:
+
+  Optional vector of initial ensemble weights passed to `survivalSL()`
+  when supported.
+
+- optim.method:
+
+  Character scalar. Optimization method passed to `survivalSL()`.
+
+- penalty:
+
+  Optional penalty value passed to `survivalSL()` or penalized
+  regression routines.
+
+- pgcens:
+
+  Logical. If `TRUE` and `censmod = TRUE`, estimate the
+  censoring-related prognostic score `pgcens`.
+
+- pscens:
+
+  Logical. If `TRUE` and `censmod = TRUE`, estimate the
+  censoring-related propensity score `pscens`.
+
+- censmod:
+
+  Logical. If `TRUE`, request censoring-related scores in addition to
+  treatment-based scores.
+
+- maxit:
+
+  Integer. Maximum number of optimization iterations passed to
+  `survivalSL()`.
 
 - model.pg:
 
-  Character. "cox" or "aft" for non-SL prognostic modeling.
+  Character scalar. Prognostic model family used when
+  `superLearn = FALSE`. Must be one of `"cox"` or `"aft"`.
 
 - standardize:
 
-  Logical. Standardize covariates for glmnet.
+  Logical. Whether to standardize predictors in glmnet-based fits.
 
 - superLearn:
 
-  Logical. Use SuperLearner/survivalSL branches if TRUE.
+  Logical. If `TRUE`, use SuperLearner / survivalSL-based estimation.
+  Otherwise use glm / glmnet / Cox / AFT alternatives.
 
 - pslink:
 
-  Character. "logit" or "probit".
+  Character scalar. Link function for binomial propensity models. Must
+  be one of `"logit"` or `"probit"`.
 
 - pglink:
 
-  Character. AFT distribution for flexsurvreg.
+  Character scalar. Distribution used in
+  [`flexsurv::flexsurvreg()`](http://chjackson.github.io/flexsurv-dev/reference/flexsurvreg.md)
+  when `model.pg = "aft"`.
+
+- sl_parallel:
+
+  Character scalar. Parallel mode for SuperLearner-based fitting. Must
+  be one of `"multicore"` or `"seq"`.
 
 ## Value
 
-A data.frame with stable columns:
+A `data.frame` with one row per subject and the following stable
+columns:
 
-- `id`: ID values
+- `id`: subject identifier,
 
-- `ps`: treatment propensity score (if computed)
+- `ps`: treatment propensity score,
 
-- `pg0`, `pg1`: treatment-specific prognostic scores (if computed)
+- `pg0`, `pg1`: treatment-specific prognostic scores,
 
-- `pscens`: censoring propensity score (if computed)
+- `pscens`: censoring-related propensity score,
 
-- `pgcens`: censoring prognostic score (if computed)
+- `pgcens`: censoring-related prognostic score,
+
+- `ps_sc`, `pg0_sc`, `pg1_sc`, `pscens_sc`, `pgcens_sc`: scaled versions
+  of the corresponding scores.
+
+## Details
+
+**Treatment propensity score.**
+
+The function estimates `ps`, the probability of treatment conditional on
+`Xtrt` when supplied, or on `X` otherwise.
+
+**Treatment-specific prognostic scores.**
+
+If `doublepg = TRUE`, the function estimates `pg0` and `pg1`,
+corresponding to treatment-specific prognostic scores obtained by
+fitting separate prognostic models within the observed treatment groups.
+
+**Censoring-related scores.**
+
+If `censmod = TRUE`, the function may additionally estimate `pscens` and
+`pgcens`, depending on `pscens` and `pgcens`. These are constructed
+using covariates `c(X, A)` and the supplied `event` indicator.
+
+**Scaled outputs.**
+
+The function also returns scaled versions of the raw scores: `ps_sc`,
+`pg0_sc`, `pg1_sc`, `pscens_sc`, and `pgcens_sc`. Propensity-type scores
+are transformed to the logit scale before standardization.
+
+**Parallel fitting.**
+
+When `superLearn = TRUE`, parallel behavior for SuperLearner-based
+estimation is controlled by `sl_parallel`. On Windows, multicore mode is
+automatically downgraded to sequential execution.
