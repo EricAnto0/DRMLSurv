@@ -20,15 +20,15 @@ devtools::load_all(".")
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 [![pkgdown](https://img.shields.io/badge/pkgdown-site-blue)](https://EricAnto0.github.io/DRMLSurv/)
-<!-- [![codecov](https://codecov.io/gh/EricAnto0/DRMLSurv/branch/main/graph/badge.svg?token=40bf1efa-77ab-4c3b-836e-a2dfd87d23ae)](https://codecov.io/gh/EricAnto0/DRMLSurv) -->
 [![codecov](https://codecov.io/gh/EricAnto0/DRMLSurv/branch/main/graph/badge.svg)](https://codecov.io/gh/EricAnto0/DRMLSurv)
 <!-- badges: end -->
 
-<img src="man/figures/DRMLSurvLogo.png" align="right" height="200" width="220" />
+<img src="man/figures/DRMLSurvLogo.png" align="right" height="180" width="220" />
 
 DRMLSurv is an R package for two-stage survival analysis with censoring, matching-based imputation, counterfactual outcome construction, and machine-learning estimation of dynamic treatment rules.
 
 Main features include:
+
 - estimate propensity and prognostic (and censoring) scores with SuperLearner
 - donor-based imputation of censored stage-1 and stage-2 survival times
 - matched counterfactual outcome construction under alternative treatment paths
