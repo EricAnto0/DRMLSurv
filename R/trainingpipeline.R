@@ -257,7 +257,7 @@ Drmatch <- function(
         param.weights.fix  = param.weights.fix,
         param.weights.init = param.weights.init,
         optim.method = optim.method,
-        maxit        = 100000,
+        maxit        = maxit,
         penalty1     = penalty1,
         penalty2     = penalty2,
         ngrid        = 2000,
