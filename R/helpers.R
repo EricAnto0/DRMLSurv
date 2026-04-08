@@ -1,3 +1,17 @@
+#' Internal helper to relabel errors with a step name
+#' @keywords internal
+#' @noRd
+
+.tag_error <- function(expr, label) {
+  tryCatch(
+    expr,
+    error = function(e) {
+      stop(sprintf("[%s] %s", label, conditionMessage(e)), call. = FALSE)
+    }
+  )
+}
+
+
 #internal helper functions
 #' Internal helper to capture step failures
 #' @keywords internal
@@ -35,16 +49,3 @@
   )
 }
 
-
-#' Internal helper to relabel errors with a step name
-#' @keywords internal
-#' @noRd
-
-.tag_error <- function(expr, label) {
-  tryCatch(
-    expr,
-    error = function(e) {
-      stop(sprintf("[%s] %s", label, conditionMessage(e)), call. = FALSE)
-    }
-  )
-}

@@ -1,3 +1,192 @@
+#' Impute censored stage-2 outcomes via constrained donor matching
+#'
+#' @description
+#' For each stage-2 censored subject (\code{delta.var == 0}), constructs an eligible donor pool of
+#' uncensored subjects (\code{delta.var == 1}) and imputes the stage-2 outcome \code{Y2.var},
+#' returning the imputed/observed outcome as \code{compY2}. Matching is performed using \pkg{MatchIt}
+#' with nearest-neighbor or optimal matching, optional exact matching, and configurable aggregation
+#' across \code{k} donors.
+#'
+#' Donor eligibility is constrained by requiring donors to have observed overall time \code{OY.var}
+#' at least as large as the recipient’s \code{OY.var}. This is intended to ensure donors have
+#' follow-up long enough relative to the censored subject.
+#'
+#' @details
+#' The function loops over censored IDs. For each ID, it forms a temporary dataset consisting of the
+#' focal censored unit plus eligible donors and runs \pkg{MatchIt} by defining
+#' \code{tr = (delta.var == 0)} (censored-as-treated). Donors are then taken from the matched
+#' \code{subclass} containing the focal censored unit.
+#'
+#' Donor outcomes \code{Y2.var} are aggregated according to \code{aggregate}:
+#' \itemize{
+#'   \item \code{"mean"}: arithmetic mean,
+#'   \item \code{"weighted"}: weighted mean using \code{weights} from \pkg{MatchIt},
+#'   \item \code{"nearest"}: take the single nearest donor by \code{distance}.
+#' }
+#'
+#' For uncensored subjects (\code{delta.var == 1}), \code{compY2} is set to the observed \code{Y2.var}.
+#'
+#' @param dat A data.frame containing stage-2 entrants and required variables for matching and filtering.
+#' @param id.var Character scalar. Subject identifier column name.
+#' @param delta.var Character scalar. Stage-2 event indicator column name. Convention:
+#' \code{1 = observed event/outcome}, \code{0 = censored}.
+#' @param OY.var Character scalar. Column name for observed-time boundary used to constrain donors.
+#' @param Y2.var Character scalar. Stage-2 outcome column to impute.
+#' @param formula2 A formula giving matching covariates. Internally \code{update(formula2, tr ~ .)}
+#' is used to create a two-sided formula with \code{tr} as the matching "treatment" indicator.
+#' @param exact.vars Optional exact matching specification passed to \pkg{MatchIt}: \code{NULL}, a
+#' one-sided formula, or a character vector of names.
+#' @param method Matching method: \code{"nearest"} or \code{"optimal"}.
+#' @param distance Character. Distance argument passed to \pkg{MatchIt} (e.g., \code{"mahalanobis"}).
+#' @param k Integer. Donor ratio (number of matched donors per censored subject).
+#' @param replace Logical. Whether donors can be reused across matches (nearest-neighbor only).
+#' @param caliper Optional numeric. Caliper for nearest-neighbor matching.
+#' @param aggregate Aggregation rule: \code{"mean"}, \code{"weighted"}, or \code{"nearest"}.
+#'
+#' @return A list with components:
+#' \itemize{
+#'   \item \code{imputed}: data.frame of imputed \code{compY2} values keyed by \code{id.var} (or \code{NULL} if none),
+#'   \item \code{data_merged}: the input \code{dat} augmented with \code{compY2},
+#'   \item \code{n_censored}: number of censored subjects targeted,
+#'   \item \code{n_imputed}: number successfully imputed,
+#'   \item \code{errors}: two-column matrix recording IDs and error messages from \pkg{MatchIt}.
+#' }
+#'
+#' @seealso \code{\link[MatchIt]{matchit}}, \code{\link[MatchIt]{get_matches}}
+#' @export
+impute_censored_stage2 <- function(dat,
+                                   id.var,
+                                   delta.var,          # 1 = event, 0 = censored
+                                   OY.var,
+                                   Y2.var,
+                                   formula2,
+                                   exact.vars = NULL,
+                                   method = c("nearest","optimal"),
+                                   distance = "mahalanobis",
+                                   k = 1,
+                                   replace = TRUE,
+                                   caliper = NULL,
+                                   aggregate = c("mean","weighted","nearest")) {
+
+  method    <- match.arg(method)
+  aggregate <- match.arg(aggregate)
+
+
+  if (!requireNamespace("MatchIt", quietly = TRUE)) {
+    stop("Package 'MatchIt' is required for impute_censored_stage2().", call. = FALSE)
+  }
+
+  .make_exact <- function(x) {
+    if (is.null(x)) return(NULL)
+    if (inherits(x, "formula")) return(x)
+    if (is.character(x)) return(stats::reformulate(x))
+    stop("exact.vars must be NULL, a one-sided formula, or a character vector", call. = FALSE)
+  }
+
+  .agg <- function(df, var) {
+    if (nrow(df) == 0L) return(NA_real_)
+    if (aggregate == "weighted" && "weights" %in% names(df) && all(is.finite(df$weights))) {
+      w <- df$weights
+      sw <- sum(w)
+      if (is.finite(sw) && sw > 0) w <- w / sw else w[] <- 1 / nrow(df)
+      return(stats::weighted.mean(df[[var]], w, na.rm = TRUE))
+    }
+    if (aggregate == "nearest" && "distance" %in% names(df)) {
+      df <- df[order(df$distance), , drop = FALSE]
+      return(as.numeric(df[[var]][1]))
+    }
+    mean(df[[var]], na.rm = TRUE)
+  }
+
+  stopifnot(is.data.frame(dat))
+  needed <- unique(c(id.var, delta.var, OY.var, Y2.var))
+  miss <- setdiff(needed, names(dat))
+  if (length(miss) > 0L) {
+    stop("Missing required columns in 'dat': ", paste(miss, collapse = ", "), call. = FALSE)
+  }
+
+  dataComp2L <- NULL
+  errorData  <- NULL
+
+  cens_ids <- dat[[id.var]][dat[[delta.var]] == 0]
+  cens_ids <- cens_ids[!is.na(cens_ids)]
+
+  for (idv in cens_ids) {
+    tmp  <- dat[dat[[id.var]] == idv, ]
+    tmp1 <- dat[dat[[delta.var]] == 1 & dat[[OY.var]] >= tmp[[OY.var]], ]
+    tmp  <- rbind(tmp, tmp1)
+
+    # censored-as-treated
+    tmp$tr <- tmp[[delta.var]] == 0
+    tmp    <- tidyr::drop_na(tmp, tr)
+    if (dplyr::n_distinct(tmp$tr) < 2L) next
+
+    mobj <- tryCatch({
+      if (identical(method, "optimal")) {
+        MatchIt::matchit(
+          update(formula2, tr ~ .),
+          data = tmp, distance = distance,
+          method = "optimal",
+          exact  = .make_exact(exact.vars),
+          ratio  = k
+        )
+      } else {
+        MatchIt::matchit(
+          update(formula2, tr ~ .),
+          data = tmp, distance = distance,
+          method = "nearest",
+          replace = replace,
+          caliper = caliper,
+          exact  = .make_exact(exact.vars),
+          ratio  = k
+        )
+      }
+    }, error = function(e) e)
+
+    if (inherits(mobj, "error")) {
+      message("ERROR: ", conditionMessage(mobj))
+      errorData <- rbind(errorData, c(idv, paste("ERROR:", conditionMessage(mobj))))
+      next
+    }
+
+    mm <- as.data.frame(MatchIt::get_matches(mobj, data = tmp))
+
+    # same subclass as focal censored unit
+    sc_focal <- unique(mm$subclass[mm[[id.var]] == idv & mm$tr])
+    if (length(sc_focal) == 0L) next
+
+    donors <- mm[mm$subclass %in% sc_focal & mm[[delta.var]] == 1, , drop = FALSE]
+    if (nrow(donors) == 0L) next
+
+    imputed_val <- .agg(donors, Y2.var)
+    dataComp2L  <- rbind(dataComp2L, c(idv, imputed_val))
+  }
+
+  dataComp2L <- as.data.frame(dataComp2L, stringsAsFactors = FALSE)
+  if (!is.null(dataComp2L) && nrow(dataComp2L) > 0) {
+    colnames(dataComp2L) <- c(id.var, "compY2")
+    dataComp2L$compY2  <- as.numeric(dataComp2L$compY2)
+
+    outDat <- merge(dat, dataComp2L, by = id.var, all.x = TRUE)
+
+    is_event <- outDat[[delta.var]] == 1
+    outDat$compY2[is_event] <- outDat[[Y2.var]][is_event]
+
+    outDat <- outDat[!is.na(outDat$compY2), ]
+  } else {
+    outDat <- dat
+    outDat$compY2 <- NA_real_
+  }
+
+  list(imputed = dataComp2L,
+       data_merged = outDat,
+       n_censored = length(cens_ids),
+       n_imputed  = if (is.null(dataComp2L)) 0L else nrow(dataComp2L),
+       errors = errorData)
+}
+
+
+
 #' Impute censored stage-specific outcomes via matching with optional learned censoring scores
 #'
 #' @description
@@ -522,189 +711,3 @@ impute_censored_stage1 <- function(dat, Id,
 }
 
 
-#' Impute censored stage-2 outcomes via constrained donor matching
-#'
-#' @description
-#' For each stage-2 censored subject (\code{delta.var == 0}), constructs an eligible donor pool of
-#' uncensored subjects (\code{delta.var == 1}) and imputes the stage-2 outcome \code{Y2.var},
-#' returning the imputed/observed outcome as \code{compY2}. Matching is performed using \pkg{MatchIt}
-#' with nearest-neighbor or optimal matching, optional exact matching, and configurable aggregation
-#' across \code{k} donors.
-#'
-#' Donor eligibility is constrained by requiring donors to have observed overall time \code{OY.var}
-#' at least as large as the recipient’s \code{OY.var}. This is intended to ensure donors have
-#' follow-up long enough relative to the censored subject.
-#'
-#' @details
-#' The function loops over censored IDs. For each ID, it forms a temporary dataset consisting of the
-#' focal censored unit plus eligible donors and runs \pkg{MatchIt} by defining
-#' \code{tr = (delta.var == 0)} (censored-as-treated). Donors are then taken from the matched
-#' \code{subclass} containing the focal censored unit.
-#'
-#' Donor outcomes \code{Y2.var} are aggregated according to \code{aggregate}:
-#' \itemize{
-#'   \item \code{"mean"}: arithmetic mean,
-#'   \item \code{"weighted"}: weighted mean using \code{weights} from \pkg{MatchIt},
-#'   \item \code{"nearest"}: take the single nearest donor by \code{distance}.
-#' }
-#'
-#' For uncensored subjects (\code{delta.var == 1}), \code{compY2} is set to the observed \code{Y2.var}.
-#'
-#' @param dat A data.frame containing stage-2 entrants and required variables for matching and filtering.
-#' @param id.var Character scalar. Subject identifier column name.
-#' @param delta.var Character scalar. Stage-2 event indicator column name. Convention:
-#' \code{1 = observed event/outcome}, \code{0 = censored}.
-#' @param OY.var Character scalar. Column name for observed-time boundary used to constrain donors.
-#' @param Y2.var Character scalar. Stage-2 outcome column to impute.
-#' @param formula2 A formula giving matching covariates. Internally \code{update(formula2, tr ~ .)}
-#' is used to create a two-sided formula with \code{tr} as the matching "treatment" indicator.
-#' @param exact.vars Optional exact matching specification passed to \pkg{MatchIt}: \code{NULL}, a
-#' one-sided formula, or a character vector of names.
-#' @param method Matching method: \code{"nearest"} or \code{"optimal"}.
-#' @param distance Character. Distance argument passed to \pkg{MatchIt} (e.g., \code{"mahalanobis"}).
-#' @param k Integer. Donor ratio (number of matched donors per censored subject).
-#' @param replace Logical. Whether donors can be reused across matches (nearest-neighbor only).
-#' @param caliper Optional numeric. Caliper for nearest-neighbor matching.
-#' @param aggregate Aggregation rule: \code{"mean"}, \code{"weighted"}, or \code{"nearest"}.
-#'
-#' @return A list with components:
-#' \itemize{
-#'   \item \code{imputed}: data.frame of imputed \code{compY2} values keyed by \code{id.var} (or \code{NULL} if none),
-#'   \item \code{data_merged}: the input \code{dat} augmented with \code{compY2},
-#'   \item \code{n_censored}: number of censored subjects targeted,
-#'   \item \code{n_imputed}: number successfully imputed,
-#'   \item \code{errors}: two-column matrix recording IDs and error messages from \pkg{MatchIt}.
-#' }
-#'
-#' @seealso \code{\link[MatchIt]{matchit}}, \code{\link[MatchIt]{get_matches}}
-#' @export
-impute_censored_stage2 <- function(dat,
-                                   id.var,
-                                   delta.var,          # 1 = event, 0 = censored
-                                   OY.var,
-                                   Y2.var,
-                                   formula2,
-                                   exact.vars = NULL,
-                                   method = c("nearest","optimal"),
-                                   distance = "mahalanobis",
-                                   k = 1,
-                                   replace = TRUE,
-                                   caliper = NULL,
-                                   aggregate = c("mean","weighted","nearest")) {
-
-  method    <- match.arg(method)
-  aggregate <- match.arg(aggregate)
-
-
-  if (!requireNamespace("MatchIt", quietly = TRUE)) {
-    stop("Package 'MatchIt' is required for impute_censored_stage2().", call. = FALSE)
-  }
-
-  .make_exact <- function(x) {
-    if (is.null(x)) return(NULL)
-    if (inherits(x, "formula")) return(x)
-    if (is.character(x)) return(stats::reformulate(x))
-    stop("exact.vars must be NULL, a one-sided formula, or a character vector", call. = FALSE)
-  }
-
-  .agg <- function(df, var) {
-    if (nrow(df) == 0L) return(NA_real_)
-    if (aggregate == "weighted" && "weights" %in% names(df) && all(is.finite(df$weights))) {
-      w <- df$weights
-      sw <- sum(w)
-      if (is.finite(sw) && sw > 0) w <- w / sw else w[] <- 1 / nrow(df)
-      return(stats::weighted.mean(df[[var]], w, na.rm = TRUE))
-    }
-    if (aggregate == "nearest" && "distance" %in% names(df)) {
-      df <- df[order(df$distance), , drop = FALSE]
-      return(as.numeric(df[[var]][1]))
-    }
-    mean(df[[var]], na.rm = TRUE)
-  }
-
-  stopifnot(is.data.frame(dat))
-  needed <- unique(c(id.var, delta.var, OY.var, Y2.var))
-  miss <- setdiff(needed, names(dat))
-  if (length(miss) > 0L) {
-    stop("Missing required columns in 'dat': ", paste(miss, collapse = ", "), call. = FALSE)
-  }
-
-  dataComp2L <- NULL
-  errorData  <- NULL
-
-  cens_ids <- dat[[id.var]][dat[[delta.var]] == 0]
-  cens_ids <- cens_ids[!is.na(cens_ids)]
-
-  for (idv in cens_ids) {
-    tmp  <- dat[dat[[id.var]] == idv, ]
-    tmp1 <- dat[dat[[delta.var]] == 1 & dat[[OY.var]] >= tmp[[OY.var]], ]
-    tmp  <- rbind(tmp, tmp1)
-
-    # censored-as-treated
-    tmp$tr <- tmp[[delta.var]] == 0
-    tmp    <- tidyr::drop_na(tmp, tr)
-    if (dplyr::n_distinct(tmp$tr) < 2L) next
-
-    mobj <- tryCatch({
-      if (identical(method, "optimal")) {
-        MatchIt::matchit(
-          update(formula2, tr ~ .),
-          data = tmp, distance = distance,
-          method = "optimal",
-          exact  = .make_exact(exact.vars),
-          ratio  = k
-        )
-      } else {
-        MatchIt::matchit(
-          update(formula2, tr ~ .),
-          data = tmp, distance = distance,
-          method = "nearest",
-          replace = replace,
-          caliper = caliper,
-          exact  = .make_exact(exact.vars),
-          ratio  = k
-        )
-      }
-    }, error = function(e) e)
-
-    if (inherits(mobj, "error")) {
-      message("ERROR: ", conditionMessage(mobj))
-      errorData <- rbind(errorData, c(idv, paste("ERROR:", conditionMessage(mobj))))
-      next
-    }
-
-    mm <- as.data.frame(MatchIt::get_matches(mobj, data = tmp))
-
-    # same subclass as focal censored unit
-    sc_focal <- unique(mm$subclass[mm[[id.var]] == idv & mm$tr])
-    if (length(sc_focal) == 0L) next
-
-    donors <- mm[mm$subclass %in% sc_focal & mm[[delta.var]] == 1, , drop = FALSE]
-    if (nrow(donors) == 0L) next
-
-    imputed_val <- .agg(donors, Y2.var)
-    dataComp2L  <- rbind(dataComp2L, c(idv, imputed_val))
-  }
-
-  dataComp2L <- as.data.frame(dataComp2L, stringsAsFactors = FALSE)
-  if (!is.null(dataComp2L) && nrow(dataComp2L) > 0) {
-    colnames(dataComp2L) <- c(id.var, "compY2")
-    dataComp2L$compY2  <- as.numeric(dataComp2L$compY2)
-
-    outDat <- merge(dat, dataComp2L, by = id.var, all.x = TRUE)
-
-    is_event <- outDat[[delta.var]] == 1
-    outDat$compY2[is_event] <- outDat[[Y2.var]][is_event]
-
-    outDat <- outDat[!is.na(outDat$compY2), ]
-  } else {
-    outDat <- dat
-    outDat$compY2 <- NA_real_
-  }
-
-  list(imputed = dataComp2L,
-       data_merged = outDat,
-       n_censored = length(cens_ids),
-       n_imputed  = if (is.null(dataComp2L)) 0L else nrow(dataComp2L),
-       errors = errorData)
-}
