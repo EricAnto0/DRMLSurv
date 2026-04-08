@@ -1,3 +1,5 @@
+
+
 #' Two-stage DTR learning/evaluation pipeline with cross-fitting
 #'
 #' @description
@@ -270,7 +272,7 @@ Drmatch <- function(
     # Imputation + double scores
     # -------------------------
     tictoc::tic("obtain the double scores for training fold")
-    MLdatascore <- capture_step(
+    MLdatascore <- .capture_step(
       get_doublescores(
         data       = mldata,
         id.var     = id.var,
@@ -332,10 +334,8 @@ Drmatch <- function(
     }
 
 
-
-
     tictoc::tic("Imputation of censored time")
-    MLdata <- capture_step(
+    MLdata <- .capture_step(
       impute_censored_outcomes(
         data       = MLdatascore,
         id.var     = id.var,

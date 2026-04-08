@@ -1,20 +1,4 @@
 
-#' Internal helper to annotate errors with a step label
-#'
-#' @param expr Expression to evaluate.
-#' @param label Character scalar used to prefix any thrown error.
-#'
-#' @return The result of \code{expr}, or an error with a labeled message.
-#' @keywords internal
-tag_error <- function(expr, label) {
-  tryCatch(
-    expr,
-    error = function(e) {
-      stop(sprintf("[%s] %s", label, conditionMessage(e)), call. = FALSE)
-    }
-  )
-}
-
 #' Compute treatment, prognostic, and optional censoring-related scores
 #'
 #' @description
@@ -407,7 +391,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
   }
 
   predict_survival_mean <- function(fit, newdata, newtimes) {
-    pred <- tag_error(
+    pred <- .tag_error(
       predict(fit, newdata = newdata, newtimes = newtimes),
       "ComputeScores: predict survivalSL"
     )
@@ -478,7 +462,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
     } else {
       tick("Treatment PS: CV.SuperLearner")
       set.seed(sl.seed, "L'Ecuyer-CMRG")
-      sl_ps <- tag_error(
+      sl_ps <- .tag_error(
         SuperLearner::CV.SuperLearner(
           Y = y,
           X = XXtrt,
@@ -505,7 +489,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
       if (ncol(xtrt_mm) == 0L) {
         out$ps <- const_prob(y, nrow(data))
       } else if (ncol(xtrt_mm) > 1L) {
-        cv.fit.ps <- tag_error(
+        cv.fit.ps <- .tag_error(
           glmnet::cv.glmnet(
             x = xtrt_mm,
             y = y,
@@ -523,7 +507,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         gc()
       } else {
         df_ps <- data.frame(y = y, x1 = xtrt_mm[, 1])
-        fit_ps <- tag_error(
+        fit_ps <- .tag_error(
           stats::glm(y ~ x1, data = df_ps, family = stats::binomial(link = "logit")),
           "ComputeScores: treatment PS glm"
         )
@@ -538,7 +522,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         out$ps <- const_prob(y, nrow(data))
       } else {
         df_ps <- data.frame(y = y, XXtrt)
-        fit_ps <- tag_error(
+        fit_ps <- .tag_error(
           stats::glm(y ~ ., data = df_ps, family = stats::binomial(link = pslink)),
           "ComputeScores: treatment PS glm nonlogit"
         )
@@ -565,7 +549,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
       if (length(loc1) > 0L) {
         survdata1 <- prep_df(data[loc1, c(Y, event, X), drop = FALSE])
         tick("Treatment PG1: survivalSL")
-        slres1 <- tag_error(
+        slres1 <- .tag_error(
           survivalSL::survivalSL(
             formula = surv_formula,
             methods = Y.SL.library,
@@ -592,7 +576,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
       if (length(loc0) > 0L) {
         survdata0 <- prep_df(data[loc0, c(Y, event, X), drop = FALSE])
         tick("Treatment PG0: survivalSL")
-        slres0 <- tag_error(
+        slres0 <- .tag_error(
           survivalSL::survivalSL(
             formula = surv_formula,
             methods = Y.SL.library,
@@ -628,7 +612,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             X1 <- x_mm[loc1, , drop = FALSE]
 
             if (ncol(X1) > 1L) {
-              cv.fit1 <- tag_error(
+              cv.fit1 <- .tag_error(
                 glmnet::cv.glmnet(
                   x = X1,
                   y = Y1,
@@ -646,7 +630,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
               gc()
             } else {
               df1 <- data.frame(Y = YY[loc1], event = Event[loc1], x1 = X1[, 1])
-              fit1 <- tag_error(
+              fit1 <- .tag_error(
                 survival::coxph(survival::Surv(Y, event) ~ x1, data = df1),
                 "ComputeScores: treatment PG1 coxph"
               )
@@ -667,7 +651,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             X0 <- x_mm[loc0, , drop = FALSE]
 
             if (ncol(X0) > 1L) {
-              cv.fit0 <- tag_error(
+              cv.fit0 <- .tag_error(
                 glmnet::cv.glmnet(
                   x = X0,
                   y = Y0,
@@ -685,7 +669,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
               gc()
             } else {
               df0 <- data.frame(Y = YY[loc0], event = Event[loc0], x1 = X0[, 1])
-              fit0 <- tag_error(
+              fit0 <- .tag_error(
                 survival::coxph(survival::Surv(Y, event) ~ x1, data = df0),
                 "ComputeScores: treatment PG0 coxph"
               )
@@ -710,7 +694,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
 
         if (length(loc1) > 0L) {
           data1 <- data.frame(Y = YY[loc1], event = Event[loc1], XX[loc1, , drop = FALSE])
-          fit1 <- tag_error(
+          fit1 <- .tag_error(
             flexsurv::flexsurvreg(
               form_aft,
               data = data1,
@@ -725,7 +709,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
 
         if (length(loc0) > 0L) {
           data0 <- data.frame(Y = YY[loc0], event = Event[loc0], XX[loc0, , drop = FALSE])
-          fit0 <- tag_error(
+          fit0 <- .tag_error(
             flexsurv::flexsurvreg(
               form_aft,
               data = data0,
@@ -753,7 +737,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         } else {
           tick("Censoring PS: CV.SuperLearner")
           set.seed(sl.seed, "L'Ecuyer-CMRG")
-          sl_cens <- tag_error(
+          sl_cens <- .tag_error(
             SuperLearner::CV.SuperLearner(
               Y = Event,
               X = XXcens,
@@ -780,7 +764,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
           if (ncol(x_mm_cens) == 0L) {
             out$pscens <- const_prob(Event, nrow(data))
           } else if (ncol(x_mm_cens) > 1L) {
-            cv.fit.cens <- tag_error(
+            cv.fit.cens <- .tag_error(
               glmnet::cv.glmnet(
                 x = x_mm_cens,
                 y = Event,
@@ -798,7 +782,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             gc()
           } else {
             df_cens <- data.frame(Event = Event, x1 = x_mm_cens[, 1])
-            fit_cens <- tag_error(
+            fit_cens <- .tag_error(
               stats::glm(Event ~ x1, data = df_cens, family = stats::binomial(link = "logit")),
               "ComputeScores: censoring PS glm"
             )
@@ -813,7 +797,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             out$pscens <- const_prob(Event, nrow(data))
           } else {
             df_cens <- data.frame(Event = Event, XXcens)
-            fit_cens <- tag_error(
+            fit_cens <- .tag_error(
               stats::glm(Event ~ ., data = df_cens, family = stats::binomial(link = pslink)),
               "ComputeScores: censoring PS glm nonlogit"
             )
@@ -835,7 +819,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
           } else {
             tick("Censoring PG: SuperLearner")
             set.seed(sl.seed, "L'Ecuyer-CMRG")
-            sl_pgcens <- tag_error(
+            sl_pgcens <- .tag_error(
               SuperLearner::SuperLearner(
                 Y = YY[unc_idx],
                 X = XXcens[unc_idx, , drop = FALSE],
@@ -860,7 +844,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
           if (ncol(XA_mm) == 0L) {
             out$pgcens <- const_value(YY[unc_idx], nrow(data))
           } else if (ncol(XA_mm) > 1L) {
-            cv.fit.pg <- tag_error(
+            cv.fit.pg <- .tag_error(
               glmnet::cv.glmnet(
                 x = XA_mm[unc_idx, , drop = FALSE],
                 y = YY[unc_idx],
@@ -878,7 +862,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             gc()
           } else {
             df_pg <- data.frame(Y = YY[unc_idx], x1 = XA_mm[unc_idx, 1])
-            fit_pg <- tag_error(
+            fit_pg <- .tag_error(
               stats::lm(Y ~ x1, data = df_pg),
               "ComputeScores: censoring PG lm"
             )

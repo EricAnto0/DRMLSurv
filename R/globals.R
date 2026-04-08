@@ -4,3 +4,4 @@ utils::globalVariables(c(
   "pairedCompY_ATC_for_controls", "paired.ipcw.R_ATC_for_controls",
   "g", "i", "mtry", "estAopt.s2.ml", "estCompOSopt.s2.ml"
 ))
+
