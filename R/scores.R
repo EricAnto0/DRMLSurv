@@ -1,20 +1,4 @@
 
-#' Internal helper to annotate errors with a step label
-#'
-#' @param expr Expression to evaluate.
-#' @param label Character scalar used to prefix any thrown error.
-#'
-#' @return The result of \code{expr}, or an error with a labeled message.
-#' @keywords internal
-tag_error <- function(expr, label) {
-  tryCatch(
-    expr,
-    error = function(e) {
-      stop(sprintf("[%s] %s", label, conditionMessage(e)), call. = FALSE)
-    }
-  )
-}
-
 #' Compute treatment, prognostic, and optional censoring-related scores
 #'
 #' @description
@@ -407,7 +391,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
   }
 
   predict_survival_mean <- function(fit, newdata, newtimes) {
-    pred <- tag_error(
+    pred <- .tag_error(
       predict(fit, newdata = newdata, newtimes = newtimes),
       "ComputeScores: predict survivalSL"
     )
@@ -478,7 +462,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
     } else {
       tick("Treatment PS: CV.SuperLearner")
       set.seed(sl.seed, "L'Ecuyer-CMRG")
-      sl_ps <- tag_error(
+      sl_ps <- .tag_error(
         SuperLearner::CV.SuperLearner(
           Y = y,
           X = XXtrt,
@@ -505,7 +489,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
       if (ncol(xtrt_mm) == 0L) {
         out$ps <- const_prob(y, nrow(data))
       } else if (ncol(xtrt_mm) > 1L) {
-        cv.fit.ps <- tag_error(
+        cv.fit.ps <- .tag_error(
           glmnet::cv.glmnet(
             x = xtrt_mm,
             y = y,
@@ -523,7 +507,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         gc()
       } else {
         df_ps <- data.frame(y = y, x1 = xtrt_mm[, 1])
-        fit_ps <- tag_error(
+        fit_ps <- .tag_error(
           stats::glm(y ~ x1, data = df_ps, family = stats::binomial(link = "logit")),
           "ComputeScores: treatment PS glm"
         )
@@ -538,7 +522,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         out$ps <- const_prob(y, nrow(data))
       } else {
         df_ps <- data.frame(y = y, XXtrt)
-        fit_ps <- tag_error(
+        fit_ps <- .tag_error(
           stats::glm(y ~ ., data = df_ps, family = stats::binomial(link = pslink)),
           "ComputeScores: treatment PS glm nonlogit"
         )
@@ -565,7 +549,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
       if (length(loc1) > 0L) {
         survdata1 <- prep_df(data[loc1, c(Y, event, X), drop = FALSE])
         tick("Treatment PG1: survivalSL")
-        slres1 <- tag_error(
+        slres1 <- .tag_error(
           survivalSL::survivalSL(
             formula = surv_formula,
             methods = Y.SL.library,
@@ -592,7 +576,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
       if (length(loc0) > 0L) {
         survdata0 <- prep_df(data[loc0, c(Y, event, X), drop = FALSE])
         tick("Treatment PG0: survivalSL")
-        slres0 <- tag_error(
+        slres0 <- .tag_error(
           survivalSL::survivalSL(
             formula = surv_formula,
             methods = Y.SL.library,
@@ -628,7 +612,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             X1 <- x_mm[loc1, , drop = FALSE]
 
             if (ncol(X1) > 1L) {
-              cv.fit1 <- tag_error(
+              cv.fit1 <- .tag_error(
                 glmnet::cv.glmnet(
                   x = X1,
                   y = Y1,
@@ -646,7 +630,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
               gc()
             } else {
               df1 <- data.frame(Y = YY[loc1], event = Event[loc1], x1 = X1[, 1])
-              fit1 <- tag_error(
+              fit1 <- .tag_error(
                 survival::coxph(survival::Surv(Y, event) ~ x1, data = df1),
                 "ComputeScores: treatment PG1 coxph"
               )
@@ -667,7 +651,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             X0 <- x_mm[loc0, , drop = FALSE]
 
             if (ncol(X0) > 1L) {
-              cv.fit0 <- tag_error(
+              cv.fit0 <- .tag_error(
                 glmnet::cv.glmnet(
                   x = X0,
                   y = Y0,
@@ -685,7 +669,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
               gc()
             } else {
               df0 <- data.frame(Y = YY[loc0], event = Event[loc0], x1 = X0[, 1])
-              fit0 <- tag_error(
+              fit0 <- .tag_error(
                 survival::coxph(survival::Surv(Y, event) ~ x1, data = df0),
                 "ComputeScores: treatment PG0 coxph"
               )
@@ -710,7 +694,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
 
         if (length(loc1) > 0L) {
           data1 <- data.frame(Y = YY[loc1], event = Event[loc1], XX[loc1, , drop = FALSE])
-          fit1 <- tag_error(
+          fit1 <- .tag_error(
             flexsurv::flexsurvreg(
               form_aft,
               data = data1,
@@ -725,7 +709,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
 
         if (length(loc0) > 0L) {
           data0 <- data.frame(Y = YY[loc0], event = Event[loc0], XX[loc0, , drop = FALSE])
-          fit0 <- tag_error(
+          fit0 <- .tag_error(
             flexsurv::flexsurvreg(
               form_aft,
               data = data0,
@@ -753,7 +737,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
         } else {
           tick("Censoring PS: CV.SuperLearner")
           set.seed(sl.seed, "L'Ecuyer-CMRG")
-          sl_cens <- tag_error(
+          sl_cens <- .tag_error(
             SuperLearner::CV.SuperLearner(
               Y = Event,
               X = XXcens,
@@ -780,7 +764,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
           if (ncol(x_mm_cens) == 0L) {
             out$pscens <- const_prob(Event, nrow(data))
           } else if (ncol(x_mm_cens) > 1L) {
-            cv.fit.cens <- tag_error(
+            cv.fit.cens <- .tag_error(
               glmnet::cv.glmnet(
                 x = x_mm_cens,
                 y = Event,
@@ -798,7 +782,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             gc()
           } else {
             df_cens <- data.frame(Event = Event, x1 = x_mm_cens[, 1])
-            fit_cens <- tag_error(
+            fit_cens <- .tag_error(
               stats::glm(Event ~ x1, data = df_cens, family = stats::binomial(link = "logit")),
               "ComputeScores: censoring PS glm"
             )
@@ -813,7 +797,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             out$pscens <- const_prob(Event, nrow(data))
           } else {
             df_cens <- data.frame(Event = Event, XXcens)
-            fit_cens <- tag_error(
+            fit_cens <- .tag_error(
               stats::glm(Event ~ ., data = df_cens, family = stats::binomial(link = pslink)),
               "ComputeScores: censoring PS glm nonlogit"
             )
@@ -835,7 +819,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
           } else {
             tick("Censoring PG: SuperLearner")
             set.seed(sl.seed, "L'Ecuyer-CMRG")
-            sl_pgcens <- tag_error(
+            sl_pgcens <- .tag_error(
               SuperLearner::SuperLearner(
                 Y = YY[unc_idx],
                 X = XXcens[unc_idx, , drop = FALSE],
@@ -860,7 +844,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
           if (ncol(XA_mm) == 0L) {
             out$pgcens <- const_value(YY[unc_idx], nrow(data))
           } else if (ncol(XA_mm) > 1L) {
-            cv.fit.pg <- tag_error(
+            cv.fit.pg <- .tag_error(
               glmnet::cv.glmnet(
                 x = XA_mm[unc_idx, , drop = FALSE],
                 y = YY[unc_idx],
@@ -878,7 +862,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
             gc()
           } else {
             df_pg <- data.frame(Y = YY[unc_idx], x1 = XA_mm[unc_idx, 1])
-            fit_pg <- tag_error(
+            fit_pg <- .tag_error(
               stats::lm(Y ~ x1, data = df_pg),
               "ComputeScores: censoring PG lm"
             )
@@ -906,7 +890,6 @@ ComputeScores <- function(data, id, Y, event, X, A,
 
   out
 }
-
 #' Compute stage-specific treatment, prognostic, and optional censoring scores
 #'
 #' @description
@@ -1144,9 +1127,7 @@ ComputeScores <- function(data, id, Y, event, X, A,
 #'
 #' @seealso \code{\link{ComputeScores}}, \code{\link{propensityplot}}
 #' @export
-
-
-get_doublescores <- function(
+    get_doublescores <- function(
     data,
     id.var, eta2.var,
     Y1.var, Y2.var,
@@ -1185,266 +1166,264 @@ get_doublescores <- function(
     pslink        = "logit",
     pglink        = "lognormal",
     sl_parallel   = c("multicore", "seq")
-) {
+    ) {
 
-  sl_parallel <- match.arg(sl_parallel)
+      sl_parallel <- match.arg(sl_parallel)
 
-  stopifnot(is.data.frame(data))
+      stopifnot(is.data.frame(data))
 
-  if (!isTRUE(useds)) return(data)
+      if (!isTRUE(useds)) return(data)
 
-  if (!exists("ComputeScores", mode = "function")) {
-    stop("ComputeScores() not found in the current environment.", call. = FALSE)
-  }
+      if (!exists("ComputeScores", mode = "function")) {
+        stop("ComputeScores() not found in the current environment.", call. = FALSE)
+      }
 
-  req_cols <- unique(c(
-    id.var, eta2.var, Y1.var, Y2.var, delta.var, OY.var, A1.var, A2.var,
-    names.var1, names.var2, Xtrt1, Xtrt2
-  ))
-  req_cols <- req_cols[!is.na(req_cols) & nzchar(req_cols)]
+      req_cols <- unique(c(
+        id.var, eta2.var, Y1.var, Y2.var, delta.var, OY.var, A1.var, A2.var,
+        names.var1, names.var2, Xtrt1, Xtrt2
+      ))
+      req_cols <- req_cols[!is.na(req_cols) & nzchar(req_cols)]
 
-  miss <- setdiff(req_cols, names(data))
-  if (length(miss) > 0L) {
-    stop("Missing required columns in data: ", paste(miss, collapse = ", "), call. = FALSE)
-  }
+      miss <- setdiff(req_cols, names(data))
+      if (length(miss) > 0L) {
+        stop("Missing required columns in data: ", paste(miss, collapse = ", "), call. = FALSE)
+      }
 
-  # ------------------------------------------------------------
-  # helpers
-  # ------------------------------------------------------------
-  tick <- function(...) {
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic(...)
-  }
-  tock <- function(...) {
-    if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
-  }
+      # ------------------------------------------------------------
+      # helpers
+      # ------------------------------------------------------------
+      tick <- function(...) {
+        if (requireNamespace("tictoc", quietly = TRUE)) tictoc::tic(...)
+      }
+      tock <- function(...) {
+        if (requireNamespace("tictoc", quietly = TRUE)) tictoc::toc()
+      }
 
-  expected_cs_names <- function(id.var) {
-    c(
-      id.var,
-      "ps", "pg0", "pg1", "pscens", "pgcens",
-      "ps_sc", "pg0_sc", "pg1_sc", "pscens_sc", "pgcens_sc"
-    )
-  }
-
-  rename_stage_scores <- function(ds, id.var, stage = c("1", "2")) {
-    stage <- match.arg(stage)
-    ds <- as.data.frame(ds)
-
-    if (!id.var %in% names(ds)) {
-      names(ds)[1] <- id.var
-    }
-
-    want <- expected_cs_names(id.var)
-    if (!identical(names(ds), want)) {
-      if (ncol(ds) != length(want)) {
-        stop(
-          "ComputeScores output has ", ncol(ds), " columns, but ",
-          length(want), " were expected.",
-          call. = FALSE
+      expected_cs_names <- function(id.var) {
+        c(
+          id.var,
+          "ps", "pg0", "pg1", "pscens", "pgcens",
+          "ps_sc", "pg0_sc", "pg1_sc", "pscens_sc", "pgcens_sc"
         )
       }
-      names(ds) <- want
+
+      rename_stage_scores <- function(ds, id.var, stage = c("1", "2")) {
+        stage <- match.arg(stage)
+        ds <- as.data.frame(ds)
+
+        if (!id.var %in% names(ds)) {
+          names(ds)[1] <- id.var
+        }
+
+        want <- expected_cs_names(id.var)
+        if (!identical(names(ds), want)) {
+          if (ncol(ds) != length(want)) {
+            stop(
+              "ComputeScores output has ", ncol(ds), " columns, but ",
+              length(want), " were expected.",
+              call. = FALSE
+            )
+          }
+          names(ds) <- want
+        }
+
+        names(ds) <- c(
+          id.var,
+          paste0("probps",  stage),
+          paste0("prog0",   stage),
+          paste0("prog1",   stage),
+          paste0("probcens",stage),
+          paste0("progcens",stage),
+          paste0("ps",      stage),
+          paste0("pg0",     stage),
+          paste0("pg1",     stage),
+          paste0("pscens",  stage),
+          paste0("pgcens",  stage)
+        )
+
+        ds
+      }
+
+      attach_by_id <- function(df, add, id.var) {
+        add <- as.data.frame(add)
+
+        if (anyDuplicated(add[[id.var]]) > 0L) {
+          stop("Duplicated IDs found in score output for ", id.var, ".", call. = FALSE)
+        }
+
+        idx <- match(df[[id.var]], add[[id.var]])
+        add_cols <- setdiff(names(add), id.var)
+
+        for (nm in add_cols) {
+          df[[nm]] <- add[[nm]][idx]
+        }
+
+        df
+      }
+
+      add_empty_stage_cols <- function(df, stage = c("1", "2")) {
+        stage <- match.arg(stage)
+        nm <- c(
+          paste0("probps",  stage),
+          paste0("prog0",   stage),
+          paste0("prog1",   stage),
+          paste0("probcens",stage),
+          paste0("progcens",stage),
+          paste0("ps",      stage),
+          paste0("pg0",     stage),
+          paste0("pg1",     stage),
+          paste0("pscens",  stage),
+          paste0("pgcens",  stage)
+        )
+        for (x in nm) df[[x]] <- NA_real_
+        df
+      }
+
+      maybe_plot_ps <- function(dat, ps_col, A_col) {
+        if (isTRUE(plotps) && exists("propensityplot", mode = "function")) {
+          print(propensityplot(ps = dat[[ps_col]], A = dat[[A_col]]))
+        }
+      }
+
+      # ------------------------------------------------------------
+      # working copy
+      # ------------------------------------------------------------
+      df <- data
+
+      # optional delta adjustment for stage 1
+      if (isTRUE(adjustdelta1)) {
+        df$deltaadj <- df[[delta.var]]
+        df$deltaadj[df[[eta2.var]] == 1 & df[[delta.var]] == 1] <- 0
+      }
+
+      # ------------------------------------------------------------
+      # Stage 2
+      # ------------------------------------------------------------
+      df2 <- df[df[[eta2.var]] == 1, , drop = FALSE]
+
+      if (nrow(df2) > 0L) {
+        tick("Time to compute stage-2 scores")
+
+        ds2 <- ComputeScores(
+          data         = df2,
+          id           = id.var,
+          Y            = Y2.var,
+          event        = delta.var,
+          X            = names.var2,
+          A            = A2.var,
+          Xtrt         = Xtrt2,
+          doublepg     = doublepg,
+          outer_CV     = 5,
+          inner_CV     = 5,
+          stratifyCV   = stratifyCV,
+          cores        = cores,
+          tau          = tau,
+          sl.seed      = sl.seed,
+          A.SL.library = A.SL.library2,
+          Y.SL.library = Y.SL.library,
+          A.method     = A.method,
+          Y.method     = Y.method,
+          param.tune   = param.tune,
+          ngrid        = ngrid,
+          param.weights.fix  = param.weights.fix,
+          param.weights.init = param.weights.init,
+          optim.method = optim.method,
+          penalty      = penalty2,
+          pgcens       = pgcens,
+          pscens       = pscens,
+          censmod      = censmod,
+          maxit        = maxit,
+          model.pg     = model.pg,
+          standardize  = standardize,
+          superLearn   = superLearn,
+          pslink       = pslink,
+          pglink       = pglink,
+          sl_parallel  = sl_parallel
+        )
+
+        tock()
+
+        ds2 <- rename_stage_scores(ds2, id.var = id.var, stage = "2")
+        df  <- attach_by_id(df, ds2, id.var = id.var)
+
+        df2_plot <- df[df[[eta2.var]] == 1, , drop = FALSE]
+        maybe_plot_ps(df2_plot, "probps2", A2.var)
+
+      } else {
+        message("No stage-2 entrants (", eta2.var, " == 1); stage-2 score columns set to NA.")
+        df <- add_empty_stage_cols(df, stage = "2")
+      }
+
+      # ------------------------------------------------------------
+      # Stage 1
+      # ------------------------------------------------------------
+      tick("Time to compute stage-1 scores")
+
+      ds1 <- ComputeScores(
+        data         = df,
+        id           = id.var,
+        Y            = if (isTRUE(adjustdelta1)) Y1.var else OY.var,
+        event        = if (isTRUE(adjustdelta1)) "deltaadj" else delta.var,
+        X            = names.var1,
+        A            = A1.var,
+        Xtrt         = Xtrt1,
+        doublepg     = doublepg,
+        outer_CV     = 5,
+        inner_CV     = 5,
+        stratifyCV   = stratifyCV,
+        cores        = cores,
+        tau          = tau,
+        sl.seed      = sl.seed,
+        A.SL.library = A.SL.library1,
+        Y.SL.library = Y.SL.library,
+        A.method     = A.method,
+        Y.method     = Y.method,
+        param.tune   = param.tune,
+        ngrid        = ngrid,
+        param.weights.fix  = param.weights.fix,
+        param.weights.init = param.weights.init,
+        optim.method = optim.method,
+        penalty      = penalty1,
+        pgcens       = pgcens,
+        pscens       = pscens,
+        censmod      = censmod,
+        maxit        = maxit,
+        model.pg     = model.pg,
+        standardize  = standardize,
+        superLearn   = superLearn,
+        pslink       = pslink,
+        pglink       = pglink,
+        sl_parallel  = sl_parallel
+      )
+
+      tock()
+
+      ds1 <- rename_stage_scores(ds1, id.var = id.var, stage = "1")
+      df  <- attach_by_id(df, ds1, id.var = id.var)
+
+      maybe_plot_ps(df, "probps1", A1.var)
+
+      # ------------------------------------------------------------
+      # convenience contrasts from standardized prognostic scores
+      # ------------------------------------------------------------
+      if (isTRUE(doublepg)) {
+        df$pg1ct <- ifelse(df[[A1.var]] == 1, df$pg11, df$pg01)
+        df$pg1tc <- ifelse(df[[A1.var]] == 1, df$pg01, df$pg11)
+
+        df$pg2ct <- ifelse(
+          df[[eta2.var]] == 1,
+          ifelse(df[[A2.var]] == 1, df$pg12, df$pg02),
+          NA_real_
+        )
+        df$pg2tc <- ifelse(
+          df[[eta2.var]] == 1,
+          ifelse(df[[A2.var]] == 1, df$pg02, df$pg12),
+          NA_real_
+        )
+      }
+
+      df
     }
-
-    names(ds) <- c(
-      id.var,
-      paste0("probps",  stage),
-      paste0("prog0",   stage),
-      paste0("prog1",   stage),
-      paste0("probcens",stage),
-      paste0("progcens",stage),
-      paste0("ps",      stage),
-      paste0("pg0",     stage),
-      paste0("pg1",     stage),
-      paste0("pscens",  stage),
-      paste0("pgcens",  stage)
-    )
-
-    ds
-  }
-
-  attach_by_id <- function(df, add, id.var) {
-    add <- as.data.frame(add)
-
-    if (anyDuplicated(add[[id.var]]) > 0L) {
-      stop("Duplicated IDs found in score output for ", id.var, ".", call. = FALSE)
-    }
-
-    idx <- match(df[[id.var]], add[[id.var]])
-    add_cols <- setdiff(names(add), id.var)
-
-    for (nm in add_cols) {
-      df[[nm]] <- add[[nm]][idx]
-    }
-
-    df
-  }
-
-  add_empty_stage_cols <- function(df, stage = c("1", "2")) {
-    stage <- match.arg(stage)
-    nm <- c(
-      paste0("probps",  stage),
-      paste0("prog0",   stage),
-      paste0("prog1",   stage),
-      paste0("probcens",stage),
-      paste0("progcens",stage),
-      paste0("ps",      stage),
-      paste0("pg0",     stage),
-      paste0("pg1",     stage),
-      paste0("pscens",  stage),
-      paste0("pgcens",  stage)
-    )
-    for (x in nm) df[[x]] <- NA_real_
-    df
-  }
-
-  maybe_plot_ps <- function(dat, ps_col, A_col) {
-    if (isTRUE(plotps) && exists("propensityplot", mode = "function")) {
-      print(propensityplot(ps = dat[[ps_col]], A = dat[[A_col]]))
-    }
-  }
-
-  # ------------------------------------------------------------
-  # working copy
-  # ------------------------------------------------------------
-  df <- data
-
-  # optional delta adjustment for stage 1
-  if (isTRUE(adjustdelta1)) {
-    df$deltaadj <- df[[delta.var]]
-    df$deltaadj[df[[eta2.var]] == 1 & df[[delta.var]] == 1] <- 0
-  }
-
-  # ------------------------------------------------------------
-  # Stage 2
-  # ------------------------------------------------------------
-  df2 <- df[df[[eta2.var]] == 1, , drop = FALSE]
-
-  if (nrow(df2) > 0L) {
-    tick("Time to compute stage-2 scores")
-
-    ds2 <- ComputeScores(
-      data         = df2,
-      id           = id.var,
-      Y            = Y2.var,
-      event        = delta.var,
-      X            = names.var2,
-      A            = A2.var,
-      Xtrt         = Xtrt2,
-      doublepg     = doublepg,
-      outer_CV     = 5,
-      inner_CV     = 5,
-      stratifyCV   = stratifyCV,
-      cores        = cores,
-      tau          = tau,
-      sl.seed      = sl.seed,
-      A.SL.library = A.SL.library2,
-      Y.SL.library = Y.SL.library,
-      A.method     = A.method,
-      Y.method     = Y.method,
-      param.tune   = param.tune,
-      ngrid        = ngrid,
-      param.weights.fix  = param.weights.fix,
-      param.weights.init = param.weights.init,
-      optim.method = optim.method,
-      penalty      = penalty2,
-      pgcens       = pgcens,
-      pscens       = pscens,
-      censmod      = censmod,
-      maxit        = maxit,
-      model.pg     = model.pg,
-      standardize  = standardize,
-      superLearn   = superLearn,
-      pslink       = pslink,
-      pglink       = pglink,
-      sl_parallel  = sl_parallel
-    )
-
-    tock()
-
-    ds2 <- rename_stage_scores(ds2, id.var = id.var, stage = "2")
-    df  <- attach_by_id(df, ds2, id.var = id.var)
-
-    df2_plot <- df[df[[eta2.var]] == 1, , drop = FALSE]
-    maybe_plot_ps(df2_plot, "probps2", A2.var)
-
-  } else {
-    message("No stage-2 entrants (", eta2.var, " == 1); stage-2 score columns set to NA.")
-    df <- add_empty_stage_cols(df, stage = "2")
-  }
-
-  # ------------------------------------------------------------
-  # Stage 1
-  # ------------------------------------------------------------
-  tick("Time to compute stage-1 scores")
-
-  ds1 <- ComputeScores(
-    data         = df,
-    id           = id.var,
-    Y            = if (isTRUE(adjustdelta1)) Y1.var else OY.var,
-    event        = if (isTRUE(adjustdelta1)) "deltaadj" else delta.var,
-    X            = names.var1,
-    A            = A1.var,
-    Xtrt         = Xtrt1,
-    doublepg     = doublepg,
-    outer_CV     = 5,
-    inner_CV     = 5,
-    stratifyCV   = stratifyCV,
-    cores        = cores,
-    tau          = tau,
-    sl.seed      = sl.seed,
-    A.SL.library = A.SL.library1,
-    Y.SL.library = Y.SL.library,
-    A.method     = A.method,
-    Y.method     = Y.method,
-    param.tune   = param.tune,
-    ngrid        = ngrid,
-    param.weights.fix  = param.weights.fix,
-    param.weights.init = param.weights.init,
-    optim.method = optim.method,
-    penalty      = penalty1,
-    pgcens       = pgcens,
-    pscens       = pscens,
-    censmod      = censmod,
-    maxit        = maxit,
-    model.pg     = model.pg,
-    standardize  = standardize,
-    superLearn   = superLearn,
-    pslink       = pslink,
-    pglink       = pglink,
-    sl_parallel  = sl_parallel
-  )
-
-  tock()
-
-  ds1 <- rename_stage_scores(ds1, id.var = id.var, stage = "1")
-  df  <- attach_by_id(df, ds1, id.var = id.var)
-
-  maybe_plot_ps(df, "probps1", A1.var)
-
-  # ------------------------------------------------------------
-  # convenience contrasts from standardized prognostic scores
-  # ------------------------------------------------------------
-  if (isTRUE(doublepg)) {
-    df$pg1ct <- ifelse(df[[A1.var]] == 1, df$pg11, df$pg01)
-    df$pg1tc <- ifelse(df[[A1.var]] == 1, df$pg01, df$pg11)
-
-    df$pg2ct <- ifelse(
-      df[[eta2.var]] == 1,
-      ifelse(df[[A2.var]] == 1, df$pg12, df$pg02),
-      NA_real_
-    )
-    df$pg2tc <- ifelse(
-      df[[eta2.var]] == 1,
-      ifelse(df[[A2.var]] == 1, df$pg02, df$pg12),
-      NA_real_
-    )
-  }
-
-  df
-}
-
-
 
 #' Plot propensity (or censoring) score overlap by group
 #'
