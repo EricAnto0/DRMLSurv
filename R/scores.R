@@ -1177,8 +1177,11 @@ get_doublescores <- function(
 
   if (!isTRUE(useds)) return(data)
 
-  if (!exists("ComputeScores", mode = "function")) {
-    stop("ComputeScores() not found in the current environment.", call. = FALSE)
+  if (!exists("ComputeScores",
+              envir = environment(get_doublescores),
+              mode = "function",
+              inherits = FALSE)) {
+    stop("ComputeScores() not found in the package namespace.", call. = FALSE)
   }
 
   req_cols <- unique(c(
