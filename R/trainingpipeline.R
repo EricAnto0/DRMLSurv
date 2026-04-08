@@ -267,7 +267,7 @@ Drmatch <- function(
         doublepg     = TRUE,
         param.tune   = param.tune,
         adjustdelta1 = adjustdelta1,
-        plotps       = TRUE,
+        plotps       = plotps,
         model.pg     = model.pg,
         standardize  = standardize,
         superLearn   = superLearn,
