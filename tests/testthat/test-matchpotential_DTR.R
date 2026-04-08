@@ -182,6 +182,11 @@ test_that("matchpotential_DTR match.weight is non-negative", {
   expect_true(all(res$match.weight >= 0, na.rm = TRUE))
 })
 
+check_counterfactual <- function(res, dat, original_tx_value, cf_col, observed_col) {
+  original_tx <- dat$tx[match(res$id, dat$id)] == original_tx_value
+  expect_equal(res[[cf_col]][original_tx], res[[observed_col]][original_tx])
+}
+
 test_that("matchpotential_DTR trt_cf1L equals observed y for treated", {
   dat <- make_match_data(n = 80, seed = 14)
   res <- matchpotential_DTR(
@@ -189,13 +194,8 @@ test_that("matchpotential_DTR trt_cf1L equals observed y for treated", {
     compY = "y", vec = c("x1", "x2"), Id = "id",
     method = "full"
   )
-  # internally tx is recoded to {-1,+1}; find treated (original tx==1)
-  orig_trt <- dat$tx[match(res$id, dat$id)] == 1
-  # for treated, trt_cf1L should equal their observed outcome y
-  expect_equal(
-    res$trt_cf1L[orig_trt],
-    res$y[orig_trt]
-  )
+  check_counterfactual(res, dat, original_tx_value = 1,
+                        cf_col = "trt_cf1L", observed_col = "y")
 })
 
 test_that("matchpotential_DTR ctrl_cf1L equals observed y for controls", {
@@ -205,9 +205,6 @@ test_that("matchpotential_DTR ctrl_cf1L equals observed y for controls", {
     compY = "y", vec = c("x1", "x2"), Id = "id",
     method = "full"
   )
-  orig_ctrl <- dat$tx[match(res$id, dat$id)] == 0
-  expect_equal(
-    res$ctrl_cf1L[orig_ctrl],
-    res$y[orig_ctrl]
-  )
+  check_counterfactual(res, dat, original_tx_value = 0,
+                        cf_col = "ctrl_cf1L", observed_col = "y")
 })

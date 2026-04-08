@@ -100,7 +100,7 @@ test_that("policy_summary_metrics accuracy is in [0,1]", {
   expect_lte(res$Acc1L, 1)
 })
 
-test_that("policy_summary_metrics: perfect predictions give Acc1L=1", {
+test_that("policy_summary_metrics with perfect predictions gives Acc1L=1", {
   dat   <- make_policy_data(40)
   estA1 <- dat$A1.var
   estA2 <- dat$A2.var
