@@ -107,6 +107,7 @@
 #' @seealso \code{\link{ComputeScores}}, \code{impute_censored_stage2}, \code{impute_censored_stage1}
 #' @export
 
+
 impute_censored_outcomes <- function(
     data,
     id.var, eta2.var,
@@ -135,18 +136,19 @@ impute_censored_outcomes <- function(
     penalty2      = NULL,
     ngrid         = 50,
     pscens        = TRUE,
-    pgcens       = TRUE,
+    pgcens        = TRUE,
     param.tune    = NULL,
     plotps        = FALSE,
-    model.pg      = 'cox', # "cox" or "aft"
-    standardize   = FALSE, # Standardize covariates for glmnet
-    superLearn    = TRUE, # Whether to use SuperLearner or glmnet
-    pslink        = 'logit', # "logit" or "probit"
-    distance = 'mahalanobis',
-    method   = 'nearest',       # "nearest" or "optimal"
-    K        = 3,            # donor ratio
-    replacement = TRUE
+    model.pg      = "cox",      # "cox" or "aft"
+    standardize   = FALSE,      # Standardize covariates for glmnet
+    superLearn    = TRUE,       # Whether to use SuperLearner or glmnet
+    pslink        = "logit",    # "logit" or "probit"
+    distance      = "mahalanobis",
+    method        = "nearest",  # "nearest" or "optimal"
+    K             = 3,          # donor ratio
+    replacement   = TRUE
 ) {
+  # ---- fast validation ----
   stopifnot(is.data.frame(data))
   req_cols <- c(id.var, eta2.var, Y1.var, Y2.var, delta.var, OY.var, A1.var, A2.var)
   miss_cols <- setdiff(req_cols, names(data))
@@ -222,24 +224,27 @@ impute_censored_outcomes <- function(
     if (!exists("ComputeScores", mode = "function")) {
       stop("ComputeScores() not found. It must be included in your package when usecov=FALSE.", call. = FALSE)
     }
-
   }
+  # refresh df2 after merges
+  df2 <- df[df[[eta2.var]] == 1, , drop = FALSE]
 
-  tictoc::tic("Stage 2 matching")
+  # ---- stage 2 matching / imputation ----
+  tick("Stage 2 matching")
+
   res2 <- impute_censored_stage2(
     dat        = df2,
     id.var     = id.var,
-    delta.var  = delta.var,     # your stage-2 event indicator
+    delta.var  = delta.var,
     OY.var     = OY.var,
-    Y2.var     = Y2.var,        # the outcome column you were pulling at ix
+    Y2.var     = Y2.var,
     formula2   = formula2,
     exact.vars = exact2.vars,
-    method     = method,        # "nearest" or "optimal"
+    method     = method,
     distance   = distance,
-    k          = K,   # set >1 for multiple donors
+    k          = K,
     replace    = replacement,
     caliper    = NULL,
-    aggregate  = "mean"         # or "weighted" or "nearest"
+    aggregate  = "mean"
   )
 
   say("With ", nrow(df2), " subjects who entered stage 2, ",
@@ -269,10 +274,6 @@ impute_censored_outcomes <- function(
 
   tock()
 
-  #df$compOY[is.na(df$compOY)] <- df[[OY.var]][is.na(df$compOY)]
-  # DoubleScore stage 1
-
-  # Matching stage 1
   # ---- stage 1 matching / imputation ----
   tick("Stage 1 matching")
 
@@ -300,8 +301,9 @@ impute_censored_outcomes <- function(
 
   finaldf <- res1$data_merged
   finaldf
-
 }
+
+
 
 #' Impute censored stage-1 composite outcomes via constrained donor matching
 #'

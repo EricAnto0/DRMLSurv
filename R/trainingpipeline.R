@@ -51,14 +51,17 @@
 #'
 #' @param names.var1 Character vector of covariate names used at stage 1 (scores/matching/model).
 #' @param names.var2 Character vector of covariate names used at stage 2 (scores/matching/model).
+#' @param Xtrt1 Optional character vector. Covariates used in the treatment description for stage 1
+#' @param Xtrt2 Optional character vector. Covariates used in the treatment description for stage 2
 #' @param usecov Logical; if \code{TRUE}, matching formulas are built from \code{names.var1}/\code{names.var2}.
 #'   If \code{FALSE}, matching may rely on score variables (e.g., pg/ps) produced by the pipeline.
 #'
 #' @param cores Integer number of workers used for internal parallel steps.
 #' @param tau Optional horizon(s) passed to score construction; in the shown implementation,
 #'   \code{rtau} is set to \code{cap_months} for both stages.
+#' @param stratifyCV Logical. Whether to request stratified cross-validation when
+#' supported by the underlying fitting routine.
 #' @param sl.seed Seed passed to SuperLearner / score construction components.
-#'
 #' @param A.SL.library Candidate learners for treatment (propensity) score models.
 #' @param Y.SL.library Candidate learners for outcome/censoring models used in \code{ComputeScores()}.
 #' @param A.method Optional optimization method for propensity fitting in score construction.
@@ -148,9 +151,12 @@ Drmatch <- function(
                                    'Albumin1st', 'Lymphocyte1st'),
     names.var2                 = c('ageAt1L', 'gender.sd', 'ECOG2nd0.sd', 'Lymphocyte2nd',
                                    'OS_time.1L', 'ECOG2nd1.sd','Albumin2nd', 'Lymphocyte2nd'),
+    Xtrt1                     = NULL,
+    Xtrt2                     = NULL,
     usecov                     = FALSE,
     cores                      = 5,
     tau                        = NULL,
+    stratifyCV                = FALSE,
     sl.seed                    = 1234,
     A.SL.library               = c("SL.glm", "SL.glmnet", "SL.ranger"),
     Y.SL.library               = c("LIB_COXlasso","LIB_COXen","LIB_AFTggamma", "LIB_RSF"),
@@ -190,50 +196,7 @@ Drmatch <- function(
     # -------------------------
     # Full-data prep
     # -------------------------
-    capture_step <- function(expr, step, save_dir = "debug_logs", context = list()) {
-      tryCatch(
-        expr,
-        error = function(e) {
-          debug_file <- tryCatch({
-            dir.create(save_dir, recursive = TRUE, showWarnings = FALSE)
 
-            stamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-            file  <- file.path(save_dir, paste0(step, "_", stamp, ".rds"))
-
-            info <- list(
-              step = step,
-              message = conditionMessage(e),
-              class = class(e),
-              call = conditionCall(e),
-              sys.calls = vapply(
-                sys.calls(),
-                function(x) paste(deparse(x), collapse = " "),
-                character(1)
-              ),
-              context = context,
-              time = Sys.time()
-            )
-
-            saveRDS(info, file)
-            file
-          }, error = function(save_err) {
-            message(sprintf(
-              "[%s] failed to save debug info: %s",
-              step,
-              conditionMessage(save_err)
-            ))
-            NULL
-          })
-
-          message(sprintf("[%s] %s", step, conditionMessage(e)))
-          if (!is.null(debug_file)) {
-            message(sprintf("[%s] debug saved to %s", step, debug_file))
-          }
-
-          NULL
-        }
-      )
-    }
     mldata <- data # Get_data(data)
     rtau <- c(cap_months, cap_months)
 
@@ -270,7 +233,7 @@ Drmatch <- function(
     # Imputation + double scores
     # -------------------------
     tictoc::tic("obtain the double scores for training fold")
-    MLdatascore <- capture_step(
+    MLdatascore <- .capture_step(
       get_doublescores(
         data       = mldata,
         id.var     = id.var,
@@ -283,11 +246,11 @@ Drmatch <- function(
         A2.var     = A2.var,
         names.var1 = names.var1,
         names.var2 = names.var2,
-        Xtrt1      = NULL,
-        Xtrt2      = NULL,
+        Xtrt1      = Xtrt1,
+        Xtrt2      = Xtrt2,
         useds      = TRUE,
         cores      = cores,
-        stratifyCV  = FALSE,
+        stratifyCV  = stratifyCV,
         tau        = 24,
         sl.seed    = 123,
         A.SL.library1 = A.SL.library1,
@@ -308,7 +271,7 @@ Drmatch <- function(
         doublepg     = TRUE,
         param.tune   = param.tune,
         adjustdelta1 = adjustdelta1,
-        plotps       = TRUE,
+        plotps       = plotps,
         model.pg     = model.pg,
         standardize  = standardize,
         superLearn   = superLearn,
@@ -335,7 +298,7 @@ Drmatch <- function(
 
 
     tictoc::tic("Imputation of censored time")
-    MLdata <- capture_step(
+    MLdata <- .capture_step(
       impute_censored_outcomes(
         data       = MLdatascore,
         id.var     = id.var,

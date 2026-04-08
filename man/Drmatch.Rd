@@ -21,9 +21,12 @@ Drmatch(
     "Lymphocyte1st"),
   names.var2 = c("ageAt1L", "gender.sd", "ECOG2nd0.sd", "Lymphocyte2nd", "OS_time.1L",
     "ECOG2nd1.sd", "Albumin2nd", "Lymphocyte2nd"),
+  Xtrt1 = NULL,
+  Xtrt2 = NULL,
   usecov = FALSE,
   cores = 5,
   tau = NULL,
+  stratifyCV = FALSE,
   sl.seed = 1234,
   A.SL.library = c("SL.glm", "SL.glmnet", "SL.ranger"),
   Y.SL.library = c("LIB_COXlasso", "LIB_COXen", "LIB_AFTggamma", "LIB_RSF"),
@@ -86,6 +89,10 @@ Use \code{NULL} or \code{character(0)} to disable exact matching.}
 
 \item{names.var2}{Character vector of covariate names used at stage 2 (scores/matching/model).}
 
+\item{Xtrt1}{Optional character vector. Covariates used in the treatment description for stage 1}
+
+\item{Xtrt2}{Optional character vector. Covariates used in the treatment description for stage 2}
+
 \item{usecov}{Logical; if \code{TRUE}, matching formulas are built from \code{names.var1}/\code{names.var2}.
 If \code{FALSE}, matching may rely on score variables (e.g., pg/ps) produced by the pipeline.}
 
@@ -93,6 +100,9 @@ If \code{FALSE}, matching may rely on score variables (e.g., pg/ps) produced by 
 
 \item{tau}{Optional horizon(s) passed to score construction; in the shown implementation,
 \code{rtau} is set to \code{cap_months} for both stages.}
+
+\item{stratifyCV}{Logical. Whether to request stratified cross-validation when
+supported by the underlying fitting routine.}
 
 \item{sl.seed}{Seed passed to SuperLearner / score construction components.}
 
