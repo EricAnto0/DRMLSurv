@@ -1,4 +1,4 @@
-
+#internal helper functions
 #' Internal helper to relabel errors with a step name
 #' @keywords internal
 #' @noRd
@@ -10,8 +10,6 @@
     }
   )
 }
-
-
 
 #' Internal helper to capture step failures
 #' @keywords internal
