@@ -1,16 +1,4 @@
 #internal helper functions
-#' Internal helper to relabel errors with a step name
-#' @keywords internal
-#' @noRd
-.tag_error <- function(expr, label) {
-  tryCatch(
-    expr,
-    error = function(e) {
-      stop(sprintf("[%s] %s", label, conditionMessage(e)), call. = FALSE)
-    }
-  )
-}
-
 #' Internal helper to capture step failures
 #' @keywords internal
 #' @noRd
@@ -43,6 +31,20 @@
       message(sprintf("[%s] debug saved to %s", step, file))
       
       NULL
+    }
+  )
+}
+
+
+#' Internal helper to relabel errors with a step name
+#' @keywords internal
+#' @noRd
+
+.tag_error <- function(expr, label) {
+  tryCatch(
+    expr,
+    error = function(e) {
+      stop(sprintf("[%s] %s", label, conditionMessage(e)), call. = FALSE)
     }
   )
 }
