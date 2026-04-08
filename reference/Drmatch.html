@@ -79,9 +79,12 @@ fold, and returns fold-level value summaries and benchmark comparisons.</p>
 <span>    <span class="st">"Lymphocyte1st"</span><span class="op">)</span>,</span>
 <span>  names.var2 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ageAt1L"</span>, <span class="st">"gender.sd"</span>, <span class="st">"ECOG2nd0.sd"</span>, <span class="st">"Lymphocyte2nd"</span>, <span class="st">"OS_time.1L"</span>,</span>
 <span>    <span class="st">"ECOG2nd1.sd"</span>, <span class="st">"Albumin2nd"</span>, <span class="st">"Lymphocyte2nd"</span><span class="op">)</span>,</span>
+<span>  Xtrt1 <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  Xtrt2 <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  usecov <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  cores <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>  tau <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  stratifyCV <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  sl.seed <span class="op">=</span> <span class="fl">1234</span>,</span>
 <span>  A.SL.library <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"SL.glm"</span>, <span class="st">"SL.glmnet"</span>, <span class="st">"SL.ranger"</span><span class="op">)</span>,</span>
 <span>  Y.SL.library <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"LIB_COXlasso"</span>, <span class="st">"LIB_COXen"</span>, <span class="st">"LIB_AFTggamma"</span>, <span class="st">"LIB_RSF"</span><span class="op">)</span>,</span>
@@ -174,6 +177,14 @@ Use <code>NULL</code> or <code>character(0)</code> to disable exact matching.</p
 <dd><p>Character vector of covariate names used at stage 2 (scores/matching/model).</p></dd>
 
 
+<dt id="arg-xtrt-">Xtrt1<a class="anchor" aria-label="anchor" href="#arg-xtrt-"></a></dt>
+<dd><p>Optional character vector. Covariates used in the treatment description for stage 1</p></dd>
+
+
+<dt id="arg-xtrt-">Xtrt2<a class="anchor" aria-label="anchor" href="#arg-xtrt-"></a></dt>
+<dd><p>Optional character vector. Covariates used in the treatment description for stage 2</p></dd>
+
+
 <dt id="arg-usecov">usecov<a class="anchor" aria-label="anchor" href="#arg-usecov"></a></dt>
 <dd><p>Logical; if <code>TRUE</code>, matching formulas are built from <code>names.var1</code>/<code>names.var2</code>.
 If <code>FALSE</code>, matching may rely on score variables (e.g., pg/ps) produced by the pipeline.</p></dd>
@@ -186,6 +197,11 @@ If <code>FALSE</code>, matching may rely on score variables (e.g., pg/ps) produc
 <dt id="arg-tau">tau<a class="anchor" aria-label="anchor" href="#arg-tau"></a></dt>
 <dd><p>Optional horizon(s) passed to score construction; in the shown implementation,
 <code>rtau</code> is set to <code>cap_months</code> for both stages.</p></dd>
+
+
+<dt id="arg-stratifycv">stratifyCV<a class="anchor" aria-label="anchor" href="#arg-stratifycv"></a></dt>
+<dd><p>Logical. Whether to request stratified cross-validation when
+supported by the underlying fitting routine.</p></dd>
 
 
 <dt id="arg-sl-seed">sl.seed<a class="anchor" aria-label="anchor" href="#arg-sl-seed"></a></dt>

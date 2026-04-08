@@ -31,9 +31,12 @@ Drmatch(
     "Lymphocyte1st"),
   names.var2 = c("ageAt1L", "gender.sd", "ECOG2nd0.sd", "Lymphocyte2nd", "OS_time.1L",
     "ECOG2nd1.sd", "Albumin2nd", "Lymphocyte2nd"),
+  Xtrt1 = NULL,
+  Xtrt2 = NULL,
   usecov = FALSE,
   cores = 5,
   tau = NULL,
+  stratifyCV = FALSE,
   sl.seed = 1234,
   A.SL.library = c("SL.glm", "SL.glmnet", "SL.ranger"),
   Y.SL.library = c("LIB_COXlasso", "LIB_COXen", "LIB_AFTggamma", "LIB_RSF"),
@@ -126,6 +129,16 @@ Drmatch(
   Character vector of covariate names used at stage 2
   (scores/matching/model).
 
+- Xtrt1:
+
+  Optional character vector. Covariates used in the treatment
+  description for stage 1
+
+- Xtrt2:
+
+  Optional character vector. Covariates used in the treatment
+  description for stage 2
+
 - usecov:
 
   Logical; if `TRUE`, matching formulas are built from
@@ -140,6 +153,11 @@ Drmatch(
 
   Optional horizon(s) passed to score construction; in the shown
   implementation, `rtau` is set to `cap_months` for both stages.
+
+- stratifyCV:
+
+  Logical. Whether to request stratified cross-validation when supported
+  by the underlying fitting routine.
 
 - sl.seed:
 
