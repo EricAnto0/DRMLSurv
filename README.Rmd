@@ -16,7 +16,7 @@ devtools::load_all(".")
 # DRMLSurv <img src="man/figures/DRMLSurvLogo.png" align="right" height="180" width="220" /></a>
 
 <!-- badges: start -->
-![](http://cranlogs.r-pkg.org/badges/grand-total/DRMSurv)
+![](https://cranlogs.r-pkg.org/badges/grand-total/DRMLSurv)
 [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 [![pkgdown](https://img.shields.io/badge/pkgdown-site-blue)](https://EricAnto0.github.io/DRMLSurv/)
