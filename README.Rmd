@@ -13,17 +13,18 @@ knitr::opts_chunk$set(
 devtools::load_all(".")
 ```
 
-# DRMLSurv
+# DRMLSurv <img src="man/figures/DRMLSurvLogo.png" align="right" height="180" width="220" /></a>
 
 <!-- badges: start -->
+[![CRAN status](https://www.r-pkg.org/badges/version/DRMSurv)](https://CRAN.R-project.org/package=DRMSurv) ![](http://cranlogs.r-pkg.org/badges/grand-total/DRMSurv)
 [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 [![pkgdown](https://img.shields.io/badge/pkgdown-site-blue)](https://EricAnto0.github.io/DRMLSurv/)
 [![codecov](https://codecov.io/gh/EricAnto0/DRMLSurv/branch/main/graph/badge.svg)](https://codecov.io/gh/EricAnto0/DRMLSurv)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 <!-- badges: end -->
 
-<img src="man/figures/DRMLSurvLogo.png" align="right" height="180" width="220" />
 
 DRMLSurv is an R package for two-stage survival analysis with censoring, matching-based imputation, counterfactual outcome construction, and machine-learning estimation of dynamic treatment rules.
 
