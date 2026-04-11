@@ -14,11 +14,22 @@ Implements a two-stage survival analysis pipeline that combines (i) imputation o
 Useful links:
 \itemize{
   \item \url{https://ericanto0.github.io/DRMLSurv/}
+  \item Report bugs at \url{https://github.com/EricAnto0/DRMLSurv/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: Eric Anto \email{eric.anto@utah.edu}
+\strong{Maintainer}: Eric Anto \email{eric.anto@utah.edu} (\href{https://orcid.org/0000-0003-4971-949X}{ORCID}) [copyright holder]
+
+Authors:
+\itemize{
+  \item Jincheng Shen \email{jincheng.shen@hsc.utah.edu} [copyright holder]
+}
+
+Other contributors:
+\itemize{
+  \item Tian Jiang \email{Tian.Jiang@utah.edu} [contributor]
+}
 
 }
 \keyword{internal}

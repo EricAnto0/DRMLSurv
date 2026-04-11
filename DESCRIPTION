@@ -2,7 +2,20 @@ Package: DRMLSurv
 Title: Doubly Robust ML and Matching for Two-Stage Survival Outcomes
 Version: 0.1.0
 Authors@R:
-    person("Eric", "Anto", , "eric.anto@utah.edu", role = c("aut", "cre"))
+    c(person(given = "Eric", family = "Anto",
+    email = "eric.anto@utah.edu", 
+    role = c("aut", "cre", "cph"),
+    comment = c(ORCID = "0000-0003-4971-949X")
+    ),
+    person(given = "Jincheng", 
+             family = "Shen", 
+             email = "jincheng.shen@hsc.utah.edu",
+             role = c("aut", "cph")),
+      person(given = "Tian",
+             family = "Jiang",
+             role = c("ctb"),
+             email = "Tian.Jiang@utah.edu")
+             )
 Description: Implements a two-stage survival analysis pipeline that combines
     (i) imputation of censored stage-specific survival times via donor matching,
     (ii) construction of matched counterfactual outcomes under static and dynamic
@@ -11,10 +24,14 @@ Description: Implements a two-stage survival analysis pipeline that combines
     full matching, optional exact matching, balance diagnostics, and flexible
     censoring/propensity score models via DoubleScore/SuperLearner-style
     learners.
-License: MIT + file LICENSE
+Depends: 
+    R (>= 3.5)
+License: AGPL-3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+LazyData: true
+Config/testthat/edition: 3
 Imports:
     stats,
     utils,
@@ -46,7 +63,5 @@ Suggests:
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 URL: https://ericanto0.github.io/DRMLSurv/
-Depends: 
-    R (>= 3.5)
-LazyData: true
-Config/testthat/edition: 3
+BugReports: https://github.com/EricAnto0/DRMLSurv/issues
+
