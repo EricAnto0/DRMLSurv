@@ -3,7 +3,7 @@
 
 <!-- badges: start -->
 
-![](http://cranlogs.r-pkg.org/badges/grand-total/DRMSurv)
+![](https://cranlogs.r-pkg.org/badges/grand-total/DRMLSurv)
 [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)
 [![Lifecycle:
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
