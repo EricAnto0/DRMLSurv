@@ -7,7 +7,7 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "",
   fig.path = "man/figures/README-",
-  out.width = "100%" #[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)(LICENSE.md) [![CRAN status](https://www.r-pkg.org/badges/version/DRMSurv)](https://CRAN.R-project.org/package=DRMSurv)
+  out.width = "100%"
 )
 
 devtools::load_all(".")
