@@ -15,6 +15,17 @@ Useful links:
 
 - <https://ericanto0.github.io/DRMLSurv/>
 
+- Report bugs at <https://github.com/EricAnto0/DRMLSurv/issues>
+
 ## Author
 
 **Maintainer**: Eric Anto <eric.anto@utah.edu>
+([ORCID](https://orcid.org/0000-0003-4971-949X)) \[copyright holder\]
+
+Authors:
+
+- Jincheng Shen <jincheng.shen@hsc.utah.edu> \[copyright holder\]
+
+Other contributors:
+
+- Tian Jiang <Tian.Jiang@utah.edu> \[contributor\]
