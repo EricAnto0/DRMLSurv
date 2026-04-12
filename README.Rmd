@@ -7,9 +7,8 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "",
   fig.path = "man/figures/README-",
-  out.width = "100%"
+  out.width = "100%" 
 )
-
 devtools::load_all(".")
 ```
 
@@ -26,7 +25,7 @@ devtools::load_all(".")
 <!-- badges: end -->
 
 
--------------------------------------------------------------------------
+--------------------------------------------------------------------------
 
 DRMLSurv is an R package for two-stage survival analysis with censoring, matching-based imputation, counterfactual outcome construction, and machine-learning estimation of dynamic treatment rules.
 
