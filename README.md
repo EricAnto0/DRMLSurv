@@ -3,22 +3,20 @@
 
 <!-- badges: start -->
 
-[![CRAN
-status](https://www.r-pkg.org/badges/version/DRMSurv)](https://CRAN.R-project.org/package=DRMSurv)
-![](http://cranlogs.r-pkg.org/badges/grand-total/DRMSurv)
+![](https://cranlogs.r-pkg.org/badges/grand-total/DRMLSurv)
 [![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)
-[![License:
-MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 [![Lifecycle:
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
 [![pkgdown](https://img.shields.io/badge/pkgdown-site-blue)](https://EricAnto0.github.io/DRMLSurv/)
 [![codecov](https://codecov.io/gh/EricAnto0/DRMLSurv/branch/main/graph/badge.svg)](https://codecov.io/gh/EricAnto0/DRMLSurv)
-[![License: GPL
-v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License:
+MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 [![Project Status: Active – The project has reached a stable, usable
 state and is being actively
 developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 <!-- badges: end -->
+
+------------------------------------------------------------------------
 
 DRMLSurv is an R package for two-stage survival analysis with censoring,
 matching-based imputation, counterfactual outcome construction, and
@@ -114,40 +112,40 @@ test_data  <- dat[test_idx, , drop = FALSE]
     replacement                = TRUE,
     cap_months                 = 24
   )
-Treatment PS: CV.SuperLearner: 2.183 sec elapsed
+Treatment PS: CV.SuperLearner: 2.172 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG1: survivalSL: 13.561 sec elapsed
+Treatment PG1: survivalSL: 13.741 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG0: survivalSL: 6.262 sec elapsed
-Censoring PS: CV.SuperLearner: 2.139 sec elapsed
-Time to compute stage-2 scores: 25.168 sec elapsed
-Treatment PS: CV.SuperLearner: 7.842 sec elapsed
+Treatment PG0: survivalSL: 6.482 sec elapsed
+Censoring PS: CV.SuperLearner: 2.083 sec elapsed
+Time to compute stage-2 scores: 25.546 sec elapsed
+Treatment PS: CV.SuperLearner: 7.69 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG1: survivalSL: 43.467 sec elapsed
+Treatment PG1: survivalSL: 44.679 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG0: survivalSL: 31.169 sec elapsed
-Censoring PS: CV.SuperLearner: 7.217 sec elapsed
-Time to compute stage-1 scores: 91.052 sec elapsed
-obtain the double scores for training fold: 116.24 sec elapsed
-Stage 2 matching: 1.607 sec elapsed
-Stage 1 matching: 12.147 sec elapsed
-Imputation of censored time: 13.766 sec elapsed
+Treatment PG0: survivalSL: 30.823 sec elapsed
+Censoring PS: CV.SuperLearner: 7.265 sec elapsed
+Time to compute stage-1 scores: 91.863 sec elapsed
+obtain the double scores for training fold: 117.43 sec elapsed
+Stage 2 matching: 1.632 sec elapsed
+Stage 1 matching: 12.339 sec elapsed
+Imputation of censored time: 13.982 sec elapsed
 Best set of tuning parameters and metrics overall
 
  ntree = 1000
 mtry = 2
 nodesize = 10
-CCR = 0.589966679007775
+CCR = 0.592706405035172
 OOB = 0.441937444480808
-Score = 7.74962552212137 
+Score = 7.75173579249977 
 Best set of tuning parameters and metrics overall
 
  ntree = 1000
 mtry = 3
 nodesize = 2
-CCR = 0.56572102654382
+CCR = 0.566101254680702
 OOB = 0.441964526192555
-Score = 12.0691160598263 
+Score = 12.0718535827058 
 #pred = predict(trainmod, newdata = test_data)
 res <- summary(trainmod, newdata = test_data)
 res
