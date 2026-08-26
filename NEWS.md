@@ -1,4 +1,4 @@
-# DRMLSurv (development version)
+# RMSurv (development version)
 
 ## 0.1.0
 

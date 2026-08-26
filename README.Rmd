@@ -12,14 +12,14 @@ knitr::opts_chunk$set(
 devtools::load_all(".")
 ```
 
-# DRMLSurv <img src="man/figures/DRMLSurvLogo.png" align="right" height="180" width="220" /></a>
+# RMSurv <img src="man/figures/RMSurvLogo.png" align="right" height="180" width="220" /></a>
 
 <!-- badges: start -->
-![](https://cranlogs.r-pkg.org/badges/grand-total/DRMLSurv)
-[![R-CMD-check](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/DRMLSurv/actions/workflows/R-CMD-check.yaml)
+![](https://cranlogs.r-pkg.org/badges/grand-total/RMSurv)
+[![R-CMD-check](https://github.com/EricAnto0/RMSurv/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EricAnto0/RMSurv/actions/workflows/R-CMD-check.yaml)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html)
-[![pkgdown](https://img.shields.io/badge/pkgdown-site-blue)](https://EricAnto0.github.io/DRMLSurv/)
-[![codecov](https://codecov.io/gh/EricAnto0/DRMLSurv/branch/main/graph/badge.svg)](https://codecov.io/gh/EricAnto0/DRMLSurv)
+[![pkgdown](https://img.shields.io/badge/pkgdown-site-blue)](https://EricAnto0.github.io/RMSurv/)
+[![codecov](https://codecov.io/gh/EricAnto0/RMSurv/branch/main/graph/badge.svg)](https://codecov.io/gh/EricAnto0/RMSurv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 <!-- badges: end -->
@@ -27,7 +27,7 @@ devtools::load_all(".")
 
 --------------------------------------------------------------------------
 
-DRMLSurv is an R package for two-stage survival analysis with censoring, matching-based imputation, counterfactual outcome construction, and machine-learning estimation of dynamic treatment rules.
+RMSurv is an R package for two-stage survival analysis with censoring, matching-based imputation, counterfactual outcome construction, and machine-learning estimation of dynamic treatment rules.
 
 Main features include:
 
@@ -41,19 +41,19 @@ Main features include:
 
 ```{r eval=FALSE}
 # install.packages("remotes")
-remotes::install_github("EricAnto0/DRMLSurv")
+remotes::install_github("EricAnto0/RMSurv")
 ```
 
 ## Load package
 
 ```{r}
-library(DRMLSurv)
+library(RMSurv)
 ```
 
 ## Example workflow
 
 ```{r message=FALSE, warning=FALSE}
-data("DATASET", package = "DRMLSurv")
+data("DATASET", package = "RMSurv")
 dat <- DATASET
 
 set.seed(123)
@@ -117,7 +117,5 @@ test_data  <- dat[test_idx, , drop = FALSE]
     replacement                = TRUE,
     cap_months                 = 24
   )
-#pred = predict(trainmod, newdata = test_data)
-res <- summary(trainmod, newdata = test_data)
-res
+pred = predict(trainmod, newdata = test_data); head(pred)
 ```
