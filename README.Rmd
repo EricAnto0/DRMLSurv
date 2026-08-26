@@ -12,7 +12,7 @@ knitr::opts_chunk$set(
 devtools::load_all(".")
 ```
 
-# RMSurv <img src="man/figures/RMSurvLogo.png" align="right" height="180" width="220" /></a>
+# RMSurv <img src="man/figures/RMSurv.png" align="right" height="180" width="220" /></a>
 
 <!-- badges: start -->
 ![](https://cranlogs.r-pkg.org/badges/grand-total/RMSurv-DRMLSurv)
@@ -35,7 +35,7 @@ Main features include:
 - estimate propensity and prognostic (and censoring) scores with SuperLearner
 - donor-based imputation of censored stage-1 and stage-2 survival times
 - matched counterfactual outcome construction under alternative treatment paths
-- policy learning with random forests and cross-validation
+- train and optimise learning rules with random forests using cross-validation for tuning hyperparameters
 - obtaining optimized regimes and policy summary metrics
 
 ## Installation
