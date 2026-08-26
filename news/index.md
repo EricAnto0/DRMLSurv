@@ -1,6 +1,6 @@
 # Changelog
 
-## DRMLSurv (development version)
+## RMSurv (development version)
 
 ### 0.1.0
 
@@ -9,15 +9,14 @@
 - Added core functions for censoring-score estimation, matching-based
   imputation, and policy learning.
 - Added
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md),
-  [`get_doublescores()`](https://ericanto0.github.io/DRMLSurv/reference/get_doublescores.md),
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md),
+  [`get_doublescores()`](https://ericanto0.github.io/RMSurv/reference/get_doublescores.md),
   and
-  [`impute_censored_outcomes()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_outcomes.md)
+  [`impute_censored_outcomes()`](https://ericanto0.github.io/RMSurv/reference/impute_censored_outcomes.md)
   workflows.
 - Added
-  [`rfdtr()`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md)
-  and
-  [`Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/Drmatch.md)
+  [`rfdtr()`](https://ericanto0.github.io/RMSurv/reference/rfdtr.md) and
+  [`Drmatch()`](https://ericanto0.github.io/RMSurv/reference/Drmatch.md)
   for dynamic treatment regime learning.
 
 #### Documentation

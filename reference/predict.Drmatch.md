@@ -88,6 +88,7 @@ When `stage = "both"`, both `A1.opt` and `A2.opt` are returned.
 Internally, stage-specific predictions are obtained from fitted ranger
 models using the `predictions` component returned by `predict.ranger()`:
 
+
     predict(model, data = newdata_subset)$predictions
 
 For classification forests, these predicted class labels are coerced to

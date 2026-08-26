@@ -1,8 +1,8 @@
-# DRMLSurv ![](reference/figures/DRMLSurvLogo.png)
+# RMSurv ![](reference/figures/RMSurvLogo.png)
 
 ------------------------------------------------------------------------
 
-DRMLSurv is an R package for two-stage survival analysis with censoring,
+RMSurv is an R package for two-stage survival analysis with censoring,
 matching-based imputation, counterfactual outcome construction, and
 machine-learning estimation of dynamic treatment rules.
 
@@ -19,20 +19,22 @@ Main features include:
 ## Installation
 
 ``` r
+
 # install.packages("remotes")
-remotes::install_github("EricAnto0/DRMLSurv")
+remotes::install_github("EricAnto0/RMSurv")
 ```
 
 ## Load package
 
 ``` r
-library(DRMLSurv)
+
+library(RMSurv)
 ```
 
 ## Example workflow
 
 ``` r
-data("DATASET", package = "DRMLSurv")
+data("DATASET", package = "RMSurv")
 dat <- DATASET
 
 set.seed(123)
@@ -96,24 +98,24 @@ test_data  <- dat[test_idx, , drop = FALSE]
     replacement                = TRUE,
     cap_months                 = 24
   )
-Treatment PS: CV.SuperLearner: 2.172 sec elapsed
+Treatment PS: CV.SuperLearner: 3.806 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG1: survivalSL: 13.741 sec elapsed
+Treatment PG1: survivalSL: 24.935 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG0: survivalSL: 6.482 sec elapsed
-Censoring PS: CV.SuperLearner: 2.083 sec elapsed
-Time to compute stage-2 scores: 25.546 sec elapsed
-Treatment PS: CV.SuperLearner: 7.69 sec elapsed
+Treatment PG0: survivalSL: 11.697 sec elapsed
+Censoring PS: CV.SuperLearner: 3.695 sec elapsed
+Time to compute stage-2 scores: 45.774 sec elapsed
+Treatment PS: CV.SuperLearner: 13.16 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG1: survivalSL: 44.679 sec elapsed
+Treatment PG1: survivalSL: 95.952 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG0: survivalSL: 30.823 sec elapsed
-Censoring PS: CV.SuperLearner: 7.265 sec elapsed
-Time to compute stage-1 scores: 91.863 sec elapsed
-obtain the double scores for training fold: 117.43 sec elapsed
-Stage 2 matching: 1.632 sec elapsed
-Stage 1 matching: 12.339 sec elapsed
-Imputation of censored time: 13.982 sec elapsed
+Treatment PG0: survivalSL: 62.751 sec elapsed
+Censoring PS: CV.SuperLearner: 12.223 sec elapsed
+Time to compute stage-1 scores: 186.957 sec elapsed
+obtain the double scores for training fold: 232.769 sec elapsed
+Stage 2 matching: 2.975 sec elapsed
+Stage 1 matching: 23.04 sec elapsed
+Imputation of censored time: 26.037 sec elapsed
 Best set of tuning parameters and metrics overall
 
  ntree = 1000
@@ -130,83 +132,70 @@ nodesize = 2
 CCR = 0.566101254680702
 OOB = 0.441964526192555
 Score = 12.0718535827058 
-#pred = predict(trainmod, newdata = test_data)
-res <- summary(trainmod, newdata = test_data)
-res
-               Stage 1    Stage 2    Overall
-Accuracy    0.52847380 0.49268293 0.24878049
-MCC         0.04268131 0.04057472 0.01388497
-Sensitivity 0.44932432 0.37704918 0.26826588
-Specificity 0.59310345 0.66265060 0.75266394
-PPV         0.47415330 0.62162162 0.26568566
-NPV         0.56878307 0.41984733 0.75276716
-F1          0.46140503 0.46938776 0.24653495
+pred = predict(trainmod, newdata = test_data); head(pred)
+  row_id A1.opt A2.opt
+1      1      1     -1
+2      2      1     NA
+3      3      1     NA
+4      4     -1     NA
+5      5      1     NA
+6      6     -1     NA
 ```
 
 # Package index
 
 ## All functions
 
-- [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+- [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   : Compute treatment, prognostic, and optional censoring-related scores
 
-- [`DATASET`](https://ericanto0.github.io/DRMLSurv/reference/DATASET.md)
-  :
+- [`DATASET`](https://ericanto0.github.io/RMSurv/reference/DATASET.md) :
 
   Two-stage example Small example dataset for demonstrating matching,
   censoring imputation, and treatment-rule learning functions in
   DRMLSurv.
 
-- [`Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/Drmatch.md)
+- [`Drmatch()`](https://ericanto0.github.io/RMSurv/reference/Drmatch.md)
   : Two-stage DTR learning/evaluation pipeline with cross-fitting
 
-- [`get_doublescores()`](https://ericanto0.github.io/DRMLSurv/reference/get_doublescores.md)
+- [`get_doublescores()`](https://ericanto0.github.io/RMSurv/reference/get_doublescores.md)
   : Compute stage-specific treatment, prognostic, and optional censoring
   scores
 
-- [`impute_censored_outcomes()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_outcomes.md)
+- [`impute_censored_outcomes()`](https://ericanto0.github.io/RMSurv/reference/impute_censored_outcomes.md)
   : Impute censored stage-specific outcomes via matching with optional
   learned censoring scores
 
-- [`impute_censored_stage1()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_stage1.md)
+- [`impute_censored_stage1()`](https://ericanto0.github.io/RMSurv/reference/impute_censored_stage1.md)
   : Impute censored stage-1 composite outcomes via constrained donor
   matching
 
-- [`impute_censored_stage2()`](https://ericanto0.github.io/DRMLSurv/reference/impute_censored_stage2.md)
+- [`impute_censored_stage2()`](https://ericanto0.github.io/RMSurv/reference/impute_censored_stage2.md)
   : Impute censored stage-2 outcomes via constrained donor matching
 
-- [`matchpotential_DTR()`](https://ericanto0.github.io/DRMLSurv/reference/matchpotential_DTR.md)
+- [`matchpotential_DTR()`](https://ericanto0.github.io/RMSurv/reference/matchpotential_DTR.md)
   : Construct matched counterfactual outcomes for a (single-stage)
   treatment contrast
 
-- [`my_score.Surv()`](https://ericanto0.github.io/DRMLSurv/reference/my_score.Surv.md)
+- [`my_score.Surv()`](https://ericanto0.github.io/RMSurv/reference/my_score.Surv.md)
   : Compute a value score under a candidate treatment rule
 
-- [`policy_summary_metrics()`](https://ericanto0.github.io/DRMLSurv/reference/policy_summary_metrics.md)
-  : Summarize policy performance metrics for a two-stage treatment
-  regime
-
-- [`predict(`*`<Drmatch>`*`)`](https://ericanto0.github.io/DRMLSurv/reference/predict.Drmatch.md)
+- [`predict(`*`<Drmatch>`*`)`](https://ericanto0.github.io/RMSurv/reference/predict.Drmatch.md)
   : Predict optimal treatment decisions from a fitted Drmatch object
 
-- [`print(`*`<summary.Drmatch>`*`)`](https://ericanto0.github.io/DRMLSurv/reference/print.summary.Drmatch.md)
+- [`print(`*`<summary.Drmatch>`*`)`](https://ericanto0.github.io/RMSurv/reference/print.summary.Drmatch.md)
   : Print a summary.Drmatch object
 
-- [`propensityplot()`](https://ericanto0.github.io/DRMLSurv/reference/propensityplot.md)
+- [`propensityplot()`](https://ericanto0.github.io/RMSurv/reference/propensityplot.md)
   : Plot propensity (or censoring) score overlap by group
 
-- [`rfdtr()`](https://ericanto0.github.io/DRMLSurv/reference/rfdtr.md) :
+- [`rfdtr()`](https://ericanto0.github.io/RMSurv/reference/rfdtr.md) :
   Tune and fit a random-forest DTR policy model with (optional)
   cross-validation
-
-- [`summary(`*`<Drmatch>`*`)`](https://ericanto0.github.io/DRMLSurv/reference/summary.Drmatch.md)
-  :
-
-  Summarize a fitted `Drmatch` object on new data
 
 # Articles
 
 ### All vignettes
 
 - [Dynamic Treatment Regime Learning with
-  DRMLSurv](https://ericanto0.github.io/DRMLSurv/articles/DRMLSurv_workflow.md):
+  DRMLSurv](https://ericanto0.github.io/RMSurv/articles/RMSurv_workflow.md):

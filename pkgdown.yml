@@ -1,9 +1,9 @@
-pandoc: 3.1.11
-pkgdown: 2.2.0
+pandoc: 3.8.3
+pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
-  DRMLSurv_workflow: DRMLSurv_workflow.html
-last_built: 2026-04-12T00:48Z
+  RMSurv_workflow: RMSurv_workflow.html
+last_built: 2026-08-26T01:46Z
 urls:
-  reference: https://ericanto0.github.io/DRMLSurv/reference
-  article: https://ericanto0.github.io/DRMLSurv/articles
+  reference: https://ericanto0.github.io/RMSurv/reference
+  article: https://ericanto0.github.io/RMSurv/articles

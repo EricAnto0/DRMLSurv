@@ -13,8 +13,7 @@ print(x, ...)
 
 - x:
 
-  An object returned by
-  [`summary.Drmatch()`](https://ericanto0.github.io/DRMLSurv/reference/summary.Drmatch.md).
+  An object returned by `summary.Drmatch()`.
 
 - ...:
 

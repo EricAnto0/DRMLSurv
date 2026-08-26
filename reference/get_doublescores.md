@@ -2,7 +2,7 @@
 
 Computes and attaches stage-specific score summaries for a two-stage
 treatment setting by calling
-[`ComputeScores`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+[`ComputeScores`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
 separately at stage 2 and stage 1.
 
 The function is a wrapper that:
@@ -15,7 +15,7 @@ The function is a wrapper that:
     `names.var1`, and `Xtrt1`;
 
 3.  renames the outputs from
-    [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+    [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
     into stage-specific columns and merges them back into the original
     dataset by subject ID.
 
@@ -127,14 +127,14 @@ get_doublescores(
 
   Character vector or `NULL`. Covariate names used in the stage-1
   treatment propensity model. If `NULL`,
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   uses `names.var1`.
 
 - Xtrt2:
 
   Character vector or `NULL`. Covariate names used in the stage-2
   treatment propensity model. If `NULL`,
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   uses `names.var2`.
 
 - useds:
@@ -145,19 +145,19 @@ get_doublescores(
 - cores:
 
   Integer. Number of cores passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   for model fitting.
 
 - tau:
 
   Optional numeric truncation horizon passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   for restricted mean prediction or time-grid construction.
 
 - sl.seed:
 
   Integer. Random seed passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
 
 - A.SL.library1:
 
@@ -173,90 +173,90 @@ get_doublescores(
 
   Character vector. Learners used for prognostic survival modeling
   inside
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
 
 - A.method:
 
   Optional character scalar. Performance metric passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   for treatment propensity estimation.
 
 - Y.method:
 
   Optional character scalar. Performance metric passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   for prognostic survival estimation.
 
 - param.weights.fix:
 
   Optional numeric vector. Fixed ensemble weights passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   when supported by the underlying learner.
 
 - param.weights.init:
 
   Optional numeric vector. Initial ensemble weights passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   when supported by the underlying learner.
 
 - optim.method:
 
   Character scalar or `NULL`. Optimization method forwarded to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
 
 - stratifyCV:
 
   Logical. Passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
   If `TRUE`, cross-validation folds are stratified when supported by the
   underlying fitting procedure.
 
 - maxit:
 
   Integer. Maximum number of optimization iterations passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
 
 - penalty1:
 
   Optional tuning parameter or penalty value passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   for stage-1 prognostic estimation.
 
 - penalty2:
 
   Optional tuning parameter or penalty value passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   for stage-2 prognostic estimation.
 
 - ngrid:
 
   Integer. Number of grid points used by
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   when approximating restricted means or evaluating predicted survival
   curves.
 
 - censmod:
 
   Logical. If `TRUE`, request censoring-related scores from
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   in addition to treatment propensity and treatment prognostic scores.
 
 - pscens:
 
   Logical. If `TRUE` and `censmod = TRUE`, estimate censoring propensity
   scores within
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
 
 - pgcens:
 
   Logical. If `TRUE` and `censmod = TRUE`, estimate censoring prognostic
   scores within
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
 
 - doublepg:
 
   Logical. Passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
   If `TRUE`, estimate treatment-specific prognostic scores separately by
   treatment arm. If `FALSE`, the returned prognostic components may be
   partially unestimated and therefore remain `NA`.
@@ -264,7 +264,7 @@ get_doublescores(
 - param.tune:
 
   Optional list or tuning object passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   for learner-specific tuning.
 
 - adjustdelta1:
@@ -277,26 +277,26 @@ get_doublescores(
 
   Logical. If `TRUE`, plot the raw treatment propensity score
   distribution at each stage using
-  [`propensityplot`](https://ericanto0.github.io/DRMLSurv/reference/propensityplot.md),
+  [`propensityplot`](https://ericanto0.github.io/RMSurv/reference/propensityplot.md),
   when available.
 
 - model.pg:
 
   Character scalar. Prognostic model type passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
   Currently intended values are `"cox"` and `"aft"`.
 
 - standardize:
 
   Logical. Passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
   If `TRUE`, standardize covariates for penalized regression fits when
   applicable.
 
 - superLearn:
 
   Logical. Passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
   If `TRUE`, use SuperLearner-based fitting; otherwise use the
   parametric or penalized alternatives implemented there.
 
@@ -304,20 +304,20 @@ get_doublescores(
 
   Character scalar. Link function for binomial propensity models passed
   to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md),
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md),
   typically `"logit"` or `"probit"`.
 
 - pglink:
 
   Character scalar. Distribution used when `model.pg = "aft"` inside
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md),
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md),
   for example `"exponential"`, `"weibull"`, `"lognormal"`, or
   `"loglogistic"`.
 
 - sl_parallel:
 
   Character scalar. Parallel mode passed to
-  [`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+  [`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
   for SuperLearner-based fitting. Must be one of `"multicore"` or
   `"seq"`.
 
@@ -350,10 +350,10 @@ and `pg2tc` are also added.
 ## Details
 
 **Scores returned by
-[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).**
+[`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).**
 
 For each call,
-[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+[`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
 returns a fixed set of score columns:
 
 - `ps`: treatment propensity score,
@@ -393,17 +393,17 @@ The prognostic model covariates are supplied through `names.var1` and
 `names.var2`. The treatment propensity model covariates are supplied
 separately through `Xtrt1` and `Xtrt2`. If `Xtrt1` or `Xtrt2` is `NULL`,
 then
-[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+[`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
 uses the corresponding prognostic covariates.
 
 **Censoring-related scores.**
 
 If `censmod = TRUE`, the wrapper also requests censoring-related scores
 from
-[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md).
+[`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md).
 The arguments `pscens` and `pgcens` determine whether censoring
 propensity and censoring prognostic scores are actively estimated. Since
-[`ComputeScores()`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md)
+[`ComputeScores()`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md)
 returns a fixed output structure, the corresponding columns are still
 present in the returned data even when those components are not
 estimated; in such cases they are typically `NA`.
@@ -427,5 +427,5 @@ If `useds = FALSE`, the function returns `data` unchanged.
 
 ## See also
 
-[`ComputeScores`](https://ericanto0.github.io/DRMLSurv/reference/ComputeScores.md),
-[`propensityplot`](https://ericanto0.github.io/DRMLSurv/reference/propensityplot.md)
+[`ComputeScores`](https://ericanto0.github.io/RMSurv/reference/ComputeScores.md),
+[`propensityplot`](https://ericanto0.github.io/RMSurv/reference/propensityplot.md)
