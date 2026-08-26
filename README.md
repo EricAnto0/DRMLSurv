@@ -135,9 +135,9 @@ Best set of tuning parameters and metrics overall
  ntree = 1000
 mtry = 2
 nodesize = 10
-CCR = 0.589966679007775
+CCR = 0.592706405035172
 OOB = 0.441937444480808
-Score = 7.74962552212137 
+Score = 7.75173579249977 
 Best set of tuning parameters and metrics overall
 
  ntree = 1000
