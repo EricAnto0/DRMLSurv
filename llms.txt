@@ -1,4 +1,4 @@
-# RMSurv ![](reference/figures/RMSurvLogo.png)
+# RMSurv ![](reference/figures/RMSurv.png)
 
 ------------------------------------------------------------------------
 
@@ -13,7 +13,8 @@ Main features include:
 - donor-based imputation of censored stage-1 and stage-2 survival times
 - matched counterfactual outcome construction under alternative
   treatment paths
-- policy learning with random forests and cross-validation
+- train and optimise learning rules with random forests using
+  cross-validation for tuning hyperparameters
 - obtaining optimized regimes and policy summary metrics
 
 ## Installation
@@ -98,24 +99,24 @@ test_data  <- dat[test_idx, , drop = FALSE]
     replacement                = TRUE,
     cap_months                 = 24
   )
-Treatment PS: CV.SuperLearner: 3.806 sec elapsed
+Treatment PS: CV.SuperLearner: 4.464 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG1: survivalSL: 24.935 sec elapsed
+Treatment PG1: survivalSL: 24.687 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG0: survivalSL: 11.697 sec elapsed
-Censoring PS: CV.SuperLearner: 3.695 sec elapsed
-Time to compute stage-2 scores: 45.774 sec elapsed
-Treatment PS: CV.SuperLearner: 13.16 sec elapsed
+Treatment PG0: survivalSL: 11.592 sec elapsed
+Censoring PS: CV.SuperLearner: 3.828 sec elapsed
+Time to compute stage-2 scores: 46.185 sec elapsed
+Treatment PS: CV.SuperLearner: 12.879 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG1: survivalSL: 95.952 sec elapsed
+Treatment PG1: survivalSL: 78.559 sec elapsed
   |                                                                              |                                                                      |   0%  |                                                                              |=====                                                                 |   7%  |                                                                              |=========                                                             |  13%  |                                                                              |==============                                                        |  20%  |                                                                              |===================                                                   |  27%  |                                                                              |=======================                                               |  33%  |                                                                              |============================                                          |  40%  |                                                                              |=================================                                     |  47%  |                                                                              |=====================================                                 |  53%  |                                                                              |==========================================                            |  60%  |                                                                              |===============================================                       |  67%  |                                                                              |===================================================                   |  73%  |                                                                              |========================================================              |  80%  |                                                                              |=============================================================         |  87%  |                                                                              |=================================================================     |  93%  |                                                                              |======================================================================| 100%
-Treatment PG0: survivalSL: 62.751 sec elapsed
-Censoring PS: CV.SuperLearner: 12.223 sec elapsed
-Time to compute stage-1 scores: 186.957 sec elapsed
-obtain the double scores for training fold: 232.769 sec elapsed
-Stage 2 matching: 2.975 sec elapsed
-Stage 1 matching: 23.04 sec elapsed
-Imputation of censored time: 26.037 sec elapsed
+Treatment PG0: survivalSL: 55.064 sec elapsed
+Censoring PS: CV.SuperLearner: 12.271 sec elapsed
+Time to compute stage-1 scores: 161.183 sec elapsed
+obtain the double scores for training fold: 207.407 sec elapsed
+Stage 2 matching: 3.342 sec elapsed
+Stage 1 matching: 25.48 sec elapsed
+Imputation of censored time: 28.843 sec elapsed
 Best set of tuning parameters and metrics overall
 
  ntree = 1000
@@ -129,9 +130,9 @@ Best set of tuning parameters and metrics overall
  ntree = 1000
 mtry = 3
 nodesize = 2
-CCR = 0.566101254680702
+CCR = 0.565721748039336
 OOB = 0.441964526192555
-Score = 12.0718535827058 
+Score = 12.0649647968543 
 pred = predict(trainmod, newdata = test_data); head(pred)
   row_id A1.opt A2.opt
 1      1      1     -1
