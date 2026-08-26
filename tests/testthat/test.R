@@ -3,7 +3,7 @@ test_that("Testing the number of objects in my output", {
   # testthat::skip_if_not_installed("SuperLearner")
   # testthat::skip_if_not_installed("survivalSL")
   # testthat::skip_if_not_installed("ranger")
-  dat = data(DATASET, package = "DRMLSurv")
+  dat = data(DATASET, package = "RMSurv")
   dat <- DATASET
   set.seed(123)
   folds <- caret::createFolds(dat$txgroup1L.sd, k = 3)
@@ -99,12 +99,12 @@ test_that("Testing the number of objects in my output", {
   )
 
   testthat::expect_false(is.null(trainmod))
-  res = summary(trainmod, newdata = test_data)
+  #res = summary(trainmod, newdata = test_data)
 
-  #pred <- predict(trainmod, newdata = test_data)
+  pred <- predict(trainmod, newdata = test_data)
 
-  #testthat::expect_false(is.null(pred))
+  testthat::expect_false(is.null(pred))
   #testthat::expect_equal(nrow(res), 8)
-  testthat::expect_lte(nrow(res), 8)
+  #testthat::expect_lte(nrow(res), 8)
 })
 

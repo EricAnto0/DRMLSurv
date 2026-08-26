@@ -1,4 +1,4 @@
-Package: DRMLSurv
+Package: RMSurv
 Title: Doubly Robust ML and Matching for Two-Stage Survival Outcomes
 Version: 0.1.0
 Authors@R:
@@ -62,6 +62,6 @@ Suggests:
     rmarkdown,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
-URL: https://ericanto0.github.io/DRMLSurv/
-BugReports: https://github.com/EricAnto0/DRMLSurv/issues
+URL: https://ericanto0.github.io/RMSurv/
+BugReports: https://github.com/EricAnto0/RMSurv/issues
 

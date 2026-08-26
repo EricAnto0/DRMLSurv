@@ -66,7 +66,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup, message = FALSE, warning = FALSE}
-library(DRMLSurv)
+library(RMSurv)
 ```
 
 # Introduction
@@ -135,7 +135,7 @@ A common variable layout is:
 If you have a package dataset, load it first.
 
 ```{r load-data, eval = FALSE}
-data("DATASET", package = "DRMLSurv")
+data("DATASET", package = "RMSurv")
 dat <- DATASET
 ```
 
@@ -445,13 +445,13 @@ fit <-  trainmod = Drmatch(
   )
 ```
 
-# Summary and prediction
+<!-- # Summary and prediction -->
 
-Once a `Drmatch` object has been fitted, the fitted rule can be summarized using the S3 summary method.
+<!-- Once a `Drmatch` object has been fitted, the fitted rule can be summarized using the S3 summary method. -->
 
-```{r summary-fit, eval = FALSE}
-summary(fit, newdata = dat)
-```
+<!-- ```{r summary-fit, eval = FALSE} -->
+<!-- summary(fit, newdata = dat) -->
+<!-- ``` -->
 
 Predictions for new data may be obtained with the corresponding prediction method.
 
@@ -460,21 +460,21 @@ pred <- predict(fit, newdata = dat)
 head(pred)
 ```
 
-Policy performance on held-out or validation data can then be summarized with `policy_summary_metrics()`.
+<!-- Policy performance on held-out or validation data can then be summarized with `policy_summary_metrics()`. -->
 
-```{r policy-summary-metrics, eval = FALSE}
-metrics <- policy_summary_metrics(
-  tmpData = dat,
-  estA1   = pred$estA1,
-  estA2   = pred$estA2
-)
+<!-- ```{r policy-summary-metrics, eval = FALSE} -->
+<!-- metrics <- policy_summary_metrics( -->
+<!--   tmpData = dat, -->
+<!--   estA1   = pred$estA1, -->
+<!--   estA2   = pred$estA2 -->
+<!-- ) -->
 
-metrics
-```
+<!-- metrics -->
+<!-- ``` -->
 
 # Practical recommendations
 
-The full `DRMLSurv` workflow can be computationally demanding. This is especially true when large SuperLearner libraries, large tuning grids, repeated cross-validation, or large datasets are used. During development and testing, it is often sensible to begin with:
+The full `RMSurv` workflow can be computationally demanding. This is especially true when large SuperLearner libraries, large tuning grids, repeated cross-validation, or large datasets are used. During development and testing, it is often sensible to begin with:
 
 - a smaller subset of the data;
 - a reduced learner library;

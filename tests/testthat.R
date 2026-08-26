@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(DRMLSurv)
+library(RMSurv)
 
-test_check("DRMLSurv")
+test_check("RMSurv")
