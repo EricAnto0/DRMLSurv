@@ -3,7 +3,7 @@ pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
   RMSurv_workflow: RMSurv_workflow.html
-last_built: 2026-08-26T01:46Z
+last_built: 2026-08-26T02:57Z
 urls:
   reference: https://ericanto0.github.io/RMSurv/reference
   article: https://ericanto0.github.io/RMSurv/articles
